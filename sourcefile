@@ -1,0 +1,4 @@
+let firstvariable = 42;
+let secondvariable = 67;
+
+thisfunction ("string")
