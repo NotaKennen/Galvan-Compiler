@@ -11,15 +11,17 @@ pub const SRC_FILE: &str = "sourcefile";    // Name of the sourcefile (move to a
 pub const LEX_DEBUG_PRINTS: bool = true;
 pub const KEYWORDS: [&str; 2] = 
     ["let", "if"];
-pub const MATH_SYMBOLS: [&str; 9] = 
-    ["+", "-", "*", "/", "<", ">", "=>", "<=", "="];
-pub const OPEN_BRACES: [&str; 3] = 
-    ["(", "[", "{"];
-pub const CLOSED_BRACES: [&str; 3] = 
-    [")", "]", "}"];
+pub const MATH_SYMBOLS: [char; 7] = 
+    ['+', '-', '*', '/', '<', '>', '='];
+pub const WHITESPACE: [char; 4] = 
+    [' ', '\n', '\t', '\r'];
+pub const OPEN_BRACES: [char; 3] = 
+    ['(', '[', '{'];
+pub const CLOSED_BRACES: [char; 3] = 
+    [')', ']', '}'];
 
 // 
 // Parser
 //
-
+pub const PAR_DEBUG_PRINTS: bool = true;
 pub const LINE_SPLITTER: char = ';';

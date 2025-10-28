@@ -1,4 +1,4 @@
-use crate::lexer::{LexSymbol, Lexeme};
+use crate::{compiler_settings::PAR_DEBUG_PRINTS, lexer::{LexSymbol, Lexeme}};
 
 //
 // NOTES
@@ -39,11 +39,13 @@ fn parse_line(organized_line: Vec<Lexeme>) {
 
 ///
 pub fn parser(lexersymbols: Vec<Lexeme>) {
-    println!("- - - PARSER");
+    if PAR_DEBUG_PRINTS {println!("- - - PARSER")}
     let organized_lines = organize_lines(lexersymbols);
-    println!("DEBUG: Organized lines:\n{:#?}", organized_lines);
+    println!("[DEBUG] Organized lines:\n{:#?}", organized_lines);
+
     for org_line in organized_lines {
         parse_line(org_line);
     }
-    println!("- Parser done!");
+    
+    if PAR_DEBUG_PRINTS {println!("- Parser done!")}
 }

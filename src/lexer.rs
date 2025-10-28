@@ -1,4 +1,5 @@
-use crate::compiler_settings::{CLOSED_BRACES, KEYWORDS, LEX_DEBUG_PRINTS, LINE_SPLITTER, MATH_SYMBOLS, OPEN_BRACES};
+use crate::compiler_settings::{CLOSED_BRACES, KEYWORDS, LEX_DEBUG_PRINTS, LINE_SPLITTER, MATH_SYMBOLS, OPEN_BRACES, WHITESPACE};
+use std::iter::Peekable;
 
 #[derive(Debug)]
 #[derive(PartialEq)]
@@ -20,62 +21,107 @@ pub struct Lexeme {
     pub symbol: LexSymbol,
     pub value: String
 }
-
-// Lexes one whitespace split "token"
-fn lex_token(token: &str) -> Vec<Lexeme> {
-
-    // Check for small writing quirks
-    if token.ends_with(LINE_SPLITTER) { // Line splitter
-        let token = token.strip_suffix(";").unwrap();
-        let mut lexeme = lex_token(token);
-        let endline = Lexeme {
-            symbol: LexSymbol::EndLine,
-            value: LINE_SPLITTER.to_string()
-        }; // FIXME: this is pretty awful
-        println!("- {}\n^ (Line Splitter)\n", LINE_SPLITTER);
-        lexeme.push(endline);
-        return lexeme
-    }
-
-    // Form it into a token
-    if LEX_DEBUG_PRINTS {println!("- {}", token)} // DEBUG
-    let result_symbol = match token {
-        token if KEYWORDS.contains(&token) => {LexSymbol::Keyword},
-        token if MATH_SYMBOLS.contains(&token) => {LexSymbol::MathSymbol},
-        token if OPEN_BRACES.contains(&token) => {LexSymbol::OpeningBracket},
-        token if CLOSED_BRACES.contains(&token) => {LexSymbol::ClosingBracket},
-        token if token.parse::<f64>().is_ok() => {LexSymbol::Integer},
-        token if token.starts_with("\"") && token.ends_with("\"")
-            => {LexSymbol::String},
-        _ => {LexSymbol::Identifier}
-    };
-
-    // TODO: Check for braces and dotting (Maybe here??)
-    // For example, something.value would be considered one identifier.
-    // Similarly somefunc("invalue") would also be one (according to current system)
-    // Don't check at writing quirks, it could influence floats (11.6 isn't a dotted value)
-    // Thus check if it's an identifier and *then* run it (?)
-
-    // Form into a struct Lexeme and return
-    if LEX_DEBUG_PRINTS {println!("^ ({:?})\n", result_symbol)} // DEBUG
-    let lexeme = Lexeme {
-        symbol: result_symbol,
-        value: token.to_string()
-    };
-    return vec![lexeme]
+impl Lexeme {
+    pub fn new(symbol: LexSymbol, value: String) -> Self {Lexeme{symbol:symbol, value:value}}
 }
 
-// Takes string, returns Vec<LexSm>
-pub fn lexer(content: &str) -> Vec<Lexeme> {
-    let mut tokens = Vec::new();
+/// Takes in a character, returns a Vec<LexSymbol>
+/// 
+/// Returns empty vector if there's not enough context, in that case run it again with the
+/// next character in the characters vector, if it returns a vector with something in it, clear
+/// characters
+fn lex_token(chars: &mut Peekable<impl Iterator<Item = char>>) -> Option<Lexeme> {
+    while let Some(&c) = chars.peek() {
+        // Token is whitespace, ignore
+        if WHITESPACE.contains(&c) { 
+            chars.next(); // Go to next char
+            continue;
+        }
 
-    if LEX_DEBUG_PRINTS {println!("- - - LEXER")}
-    if LEX_DEBUG_PRINTS {println!("[DEBUG] Dumping tokens:")}
-    for token in content.split_whitespace() {
-        let mut lexeme = lex_token(token);
-        tokens.append(&mut lexeme)
+        // Identifier or keyword
+        if c.is_ascii_alphabetic() || c == '_' {
+            let mut ident = String::new();
+            while let Some(&ch) = chars.peek() {
+                if ch.is_ascii_alphanumeric() || ch == '_' {
+                    ident.push(ch);
+                    chars.next();
+                } else {
+                    break;
+                }
+            }
+            if KEYWORDS.contains(&ident.as_str()) {
+                return Some(Lexeme::new(LexSymbol::Keyword, ident));
+            } else {
+                return Some(Lexeme::new(LexSymbol::Identifier, ident));
+            }
+        }
+
+        // Integer
+        if c.is_ascii_digit() {
+            let mut num = String::new();
+            while let Some(&ch) = chars.peek() {
+                if ch.is_ascii_digit() {
+                    num.push(ch);
+                    chars.next();
+                } else {
+                    break;
+                }
+            }
+            return Some(Lexeme::new(LexSymbol::Integer, num));
+        }
+
+        // String literal
+        if c == '"' {
+            chars.next(); // consume opening quote
+            let mut val = String::new();
+            while let Some(ch) = chars.next() {
+                if ch == '"' {
+                    break;
+                }
+                val.push(ch);
+            }
+            return Some(Lexeme::new(LexSymbol::String, val));
+        }
+    
+        // Braces
+        if OPEN_BRACES.contains(&c) {
+            chars.next();
+            return Some(Lexeme::new(LexSymbol::OpeningBracket, c.to_string()));
+        }
+        if CLOSED_BRACES.contains(&c) {
+            chars.next();
+            return Some(Lexeme::new(LexSymbol::ClosingBracket, c.to_string()));
+        }
+    
+        // Math symbols
+        if MATH_SYMBOLS.contains(&c) {
+            chars.next();
+            return Some(Lexeme::new(LexSymbol::MathSymbol, c.to_string()));
+        }
+
+        // Line splitter
+        if c == LINE_SPLITTER {
+            chars.next();
+            return Some(Lexeme::new(LexSymbol::EndLine, LINE_SPLITTER.to_string()))
+        }
+
+        // Unrecognized: skip
+        chars.next();
     }
-    println!("- Lexer done!");
 
-    return tokens
+    None
+}
+
+/// Takes string, returns Vec<LexSm>
+pub fn lexer(content: &str) -> Vec<Lexeme> {
+    if LEX_DEBUG_PRINTS {println!("- - - LEXER")}
+
+    let mut chars = content.chars().peekable();
+    let mut tokens = Vec::new();
+    while let Some(token) = lex_token(&mut chars) {
+        tokens.push(token);
+    }
+
+    if LEX_DEBUG_PRINTS {println!("- Lexer done!")}
+    return tokens;
 }
