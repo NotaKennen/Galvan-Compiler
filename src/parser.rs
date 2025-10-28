@@ -67,12 +67,17 @@ pub fn parser(lexemevector: Vec<Lexeme>) -> Result<Vec<ParFunction>, String> {
 
             // Correct start symbols
             LexSymbol::Keyword => {
+                // Conditionals
                 if lexeme.peek().unwrap().value == "if" {
 
                 }
+
+                // Function declaration
                 if lexeme.peek().unwrap().value == "fn" {
                     lexeme.next();
                 }
+
+                // Variable declaration
                 if lexeme.peek().unwrap().value == "let" {
                     // We're declaring a variable
                     lexeme.next();
@@ -88,10 +93,12 @@ pub fn parser(lexemevector: Vec<Lexeme>) -> Result<Vec<ParFunction>, String> {
                     lexeme.next();
                     // STOP
                 }
+
+                // Invalid (shouldn't happen unless Lexer messed up)
                 else {return Err(format!("Unknown Keyword: {}", lexeme.peek().unwrap().value))}
             }
             LexSymbol::Identifier => {
-                lexeme.next();
+                panic!("yuh uh (identifier)")
             }
 
             // Incorrect start symbols

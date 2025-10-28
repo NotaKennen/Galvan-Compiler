@@ -8,7 +8,7 @@ pub const SRC_FILE: &str = "sourcefile";    // Name of the sourcefile (move to a
 //
 // Lexer
 //
-pub const LEX_DEBUG_PRINTS: bool = false;
+pub const LEX_DEBUG_PRINTS: bool = true;
 pub const KEYWORDS: [&str; 3] = 
     ["let", "if", "fn"];
 pub const MATH_SYMBOLS: [char; 6] = 
