@@ -1,4 +1,5 @@
 use crate::{compiler_settings::PAR_DEBUG_PRINTS, lexer::{LexSymbol, Lexeme}};
+use std::iter::Peekable;
 
 //
 // NOTES
@@ -9,38 +10,96 @@ use crate::{compiler_settings::PAR_DEBUG_PRINTS, lexer::{LexSymbol, Lexeme}};
 //
 
 pub enum ParFunction {
-    VariableDeclaration,
-    FunctionDeclaration,
-    LiteralCalculation,
-    FunctionCall,
+    VariableDeclaration(VariableDeclaration),
+    FunctionDeclaration(FunctionDeclaration),
+    LiteralCalculation(LiteralCalculation),
+    FunctionCall(FunctionCall),
 }
+
+pub struct VariableDeclaration {
+    pub name: String,
+    pub value: String
+}
+
+pub struct FunctionDeclaration {}
+
+pub struct LiteralCalculation {}
+
+pub struct FunctionCall {}
 
 //
 // FUNCTIONS
 //
 
+/// A parser help function to expect a certain value, panics on failure.
+/// 
+/// Takes in a &Lexeme, returns Lexeme.value
+fn expect(expectation: LexSymbol, lexeme: &mut Peekable<std::slice::Iter<'_, Lexeme>>) -> String {
+    if lexeme.peek().unwrap().symbol == expectation {
+        let value = lexeme.peek().unwrap().value.clone();
+        lexeme.next();
+        return value
+    } else { // TODO: don't panic
+        panic!("Expected {:?}, not {:?}", expectation, lexeme.peek().unwrap().symbol);
+    }
+}
+
+/// See `expect()`, same thing, but has multiple possible expectations with a `&[LexSymbol]`
+fn multi_expect(expectations: &[LexSymbol], lexeme: &mut Peekable<std::slice::Iter<'_, Lexeme>>) -> String {
+    if expectations.contains(&lexeme.peek().unwrap().symbol) {
+        let value = lexeme.peek().unwrap().value.clone();
+        lexeme.next();
+        return value
+    } else { // TODO: don't panic
+        panic!("Expected one of following {:?}; not {:?}", expectations, lexeme.peek().unwrap().symbol);
+    }
+}
+
 /// Parser entrypoint, turns a Vec<Lexeme> to Vec<ParFn>
-pub fn parser(lexemevector: Vec<Lexeme>) {
+pub fn parser(lexemevector: Vec<Lexeme>) -> Result<Vec<ParFunction>, String> {
     if PAR_DEBUG_PRINTS {println!("- - - PARSER")}
 
+    let mut parfunctions: Vec<ParFunction> = Vec::new();
     let mut lexeme = lexemevector.iter().peekable();
     loop {
         if lexeme.peek() == None {break}
         match lexeme.peek().unwrap().symbol {
+
             // Correct start symbols
-            LexSymbol::Keyword => {lexeme.next();}
-            LexSymbol::Identifier => {lexeme.next();}
-            LexSymbol::String => {lexeme.next();}
+            LexSymbol::Keyword => {
+                if lexeme.peek().unwrap().value == "if" {
+
+                }
+                if lexeme.peek().unwrap().value == "fn" {
+                    lexeme.next();
+                }
+                if lexeme.peek().unwrap().value == "let" {
+                    // We're declaring a variable
+                    lexeme.next();
+                    let varname = expect(LexSymbol::Identifier, &mut lexeme);
+                    expect(LexSymbol::EqualSign, &mut lexeme);
+                    let value = multi_expect(
+                    &[LexSymbol::Integer, LexSymbol::String, LexSymbol::Identifier], &mut lexeme);
+                    // FIXME: dotting exists !!
+                    parfunctions.push(ParFunction::VariableDeclaration(
+                        VariableDeclaration {name: varname, value: value}
+                    ));
+                    expect(LexSymbol::EndLine, &mut lexeme);
+                    lexeme.next();
+                    // STOP
+                }
+                else {return Err(format!("Unknown Keyword: {}", lexeme.peek().unwrap().value))}
+            }
+            LexSymbol::Identifier => {
+                lexeme.next();
+            }
 
             // Incorrect start symbols
             LexSymbol::EndLine => {continue} // technically correct but idc
-            LexSymbol::MathSymbol => {panic!("Expected statement, not MathSymbol")}
-            LexSymbol::ClosingBracket => {panic!("Expected statement, not ClosingBracket")}
-            LexSymbol::OpeningBracket => {panic!("Expected statement, not OpeningBracket")}
-            LexSymbol::Dot => {panic!("Expected statement, not Dot")}
-            LexSymbol::Integer => {panic!("Expected statement, not Integer")}
+            token => {return Err(format!("Expected statement, not {:?}", token))}
         }
     }
 
     if PAR_DEBUG_PRINTS {println!("- Parser done!")}
+    return Ok(parfunctions)
 }

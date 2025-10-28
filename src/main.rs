@@ -9,5 +9,5 @@ fn main() {
 
     let lexersymbols = lexer(&srccontents);
 
-    parser(lexersymbols)
+    parser(lexersymbols).expect("Failed parsing");
 }

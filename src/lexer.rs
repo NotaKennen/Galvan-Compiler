@@ -12,6 +12,7 @@ pub enum LexSymbol {
     OpeningBracket,
     ClosingBracket,
     MathSymbol,
+    EqualSign,
     EndLine,
     Dot,
 }
@@ -114,6 +115,12 @@ fn lex_token(chars: &mut Peekable<impl Iterator<Item = char>>) -> Option<Lexeme>
         if c == '.' {
             chars.next();
             return Some(Lexeme::new(LexSymbol::Dot, '.'.to_string()))
+        }
+
+        // Equal Sign
+        if c == '=' {
+            chars.next();
+            return Some(Lexeme::new(LexSymbol::EqualSign, '.'.to_string()))
         }
 
         // Unrecognized: skip

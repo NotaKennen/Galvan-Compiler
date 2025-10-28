@@ -8,11 +8,11 @@ pub const SRC_FILE: &str = "sourcefile";    // Name of the sourcefile (move to a
 //
 // Lexer
 //
-pub const LEX_DEBUG_PRINTS: bool = true;
+pub const LEX_DEBUG_PRINTS: bool = false;
 pub const KEYWORDS: [&str; 3] = 
     ["let", "if", "fn"];
-pub const MATH_SYMBOLS: [char; 7] = 
-    ['+', '-', '*', '/', '<', '>', '='];
+pub const MATH_SYMBOLS: [char; 6] = 
+    ['+', '-', '*', '/', '<', '>'];
 pub const WHITESPACE: [char; 4] = 
     [' ', '\n', '\t', '\r'];
 pub const OPEN_BRACES: [char; 3] = 
