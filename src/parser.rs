@@ -4,48 +4,43 @@ use crate::{compiler_settings::PAR_DEBUG_PRINTS, lexer::{LexSymbol, Lexeme}};
 // NOTES
 //
 
-
-// 
+//
 // STRUCTS
 //
 
+pub enum ParFunction {
+    VariableDeclaration,
+    FunctionDeclaration,
+    LiteralCalculation,
+    FunctionCall,
+}
 
 //
 // FUNCTIONS
 //
 
-/// Organizes a Vec<Lexeme> into a Vec<Vec<Lexeme>> where each internal
-/// vec represents one line indicated by linesplitter
-/// FIXME: braces not counted in by this
-fn organize_lines(lexersymbols: Vec<Lexeme>) -> Vec<Vec<Lexeme>> {
-    let mut returnable: Vec<Vec<Lexeme>> = vec![];
-    let mut line: Vec<Lexeme> = vec![];
+/// Parser entrypoint, turns a Vec<Lexeme> to Vec<ParFn>
+pub fn parser(lexemevector: Vec<Lexeme>) {
+    if PAR_DEBUG_PRINTS {println!("- - - PARSER")}
 
-    for lexeme in lexersymbols {
-        line.push(lexeme.clone());
-        if lexeme.symbol == LexSymbol::EndLine {
-            returnable.push(line.clone());
-            line.clear();
+    let mut lexeme = lexemevector.iter().peekable();
+    loop {
+        if lexeme.peek() == None {break}
+        match lexeme.peek().unwrap().symbol {
+            // Correct start symbols
+            LexSymbol::Keyword => {lexeme.next();}
+            LexSymbol::Identifier => {lexeme.next();}
+            LexSymbol::String => {lexeme.next();}
+
+            // Incorrect start symbols
+            LexSymbol::EndLine => {continue} // technically correct but idc
+            LexSymbol::MathSymbol => {panic!("Expected statement, not MathSymbol")}
+            LexSymbol::ClosingBracket => {panic!("Expected statement, not ClosingBracket")}
+            LexSymbol::OpeningBracket => {panic!("Expected statement, not OpeningBracket")}
+            LexSymbol::Dot => {panic!("Expected statement, not Dot")}
+            LexSymbol::Integer => {panic!("Expected statement, not Integer")}
         }
     }
 
-    returnable
-}
-
-/// Parses one line
-fn parse_line(organized_line: Vec<Lexeme>) {
-
-}
-
-///
-pub fn parser(lexersymbols: Vec<Lexeme>) {
-    if PAR_DEBUG_PRINTS {println!("- - - PARSER")}
-    let organized_lines = organize_lines(lexersymbols);
-    println!("[DEBUG] Organized lines:\n{:#?}", organized_lines);
-
-    for org_line in organized_lines {
-        parse_line(org_line);
-    }
-    
     if PAR_DEBUG_PRINTS {println!("- Parser done!")}
 }

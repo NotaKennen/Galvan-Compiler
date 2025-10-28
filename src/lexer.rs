@@ -13,10 +13,12 @@ pub enum LexSymbol {
     ClosingBracket,
     MathSymbol,
     EndLine,
+    Dot,
 }
 
 #[derive(Clone)]
 #[derive(Debug)]
+#[derive(PartialEq)]
 pub struct Lexeme {
     pub symbol: LexSymbol,
     pub value: String
@@ -63,6 +65,9 @@ fn lex_token(chars: &mut Peekable<impl Iterator<Item = char>>) -> Option<Lexeme>
                 if ch.is_ascii_digit() {
                     num.push(ch);
                     chars.next();
+                } else if ch == '.' {
+                    num.push(ch);
+                    chars.next();
                 } else {
                     break;
                 }
@@ -105,6 +110,12 @@ fn lex_token(chars: &mut Peekable<impl Iterator<Item = char>>) -> Option<Lexeme>
             return Some(Lexeme::new(LexSymbol::EndLine, LINE_SPLITTER.to_string()))
         }
 
+        // Dot
+        if c == '.' {
+            chars.next();
+            return Some(Lexeme::new(LexSymbol::Dot, '.'.to_string()))
+        }
+
         // Unrecognized: skip
         chars.next();
     }
@@ -121,6 +132,8 @@ pub fn lexer(content: &str) -> Vec<Lexeme> {
     while let Some(token) = lex_token(&mut chars) {
         tokens.push(token);
     }
+
+    if LEX_DEBUG_PRINTS {println!("LEXED TOKENS:\n{:#?}", tokens)}
 
     if LEX_DEBUG_PRINTS {println!("- Lexer done!")}
     return tokens;
