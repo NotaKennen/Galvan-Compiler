@@ -21,7 +21,10 @@ pub struct VariableDeclaration {
     pub value: String
 }
 
-pub struct FunctionDeclaration {}
+pub struct FunctionDeclaration {
+    name: String,
+    function_contents: Vec<ParFunction>
+}
 
 pub struct LiteralCalculation {}
 
@@ -44,7 +47,7 @@ fn expect(expectation: LexSymbol, lexeme: &mut Peekable<std::slice::Iter<'_, Lex
     }
 }
 
-/// See `expect()`, same thing, but has multiple possible expectations with a `&[LexSymbol]`
+/// See `expect()`. Same thing, but has multiple possible expectations with a `&[LexSymbol]`
 fn multi_expect(expectations: &[LexSymbol], lexeme: &mut Peekable<std::slice::Iter<'_, Lexeme>>) -> String {
     if expectations.contains(&lexeme.peek().unwrap().symbol) {
         let value = lexeme.peek().unwrap().value.clone();
@@ -69,36 +72,79 @@ pub fn parser(lexemevector: Vec<Lexeme>) -> Result<Vec<ParFunction>, String> {
             LexSymbol::Keyword => {
                 // Conditionals
                 if lexeme.peek().unwrap().value == "if" {
-
+                    panic!("Conditionals not implemented!")
                 }
 
                 // Function declaration
-                if lexeme.peek().unwrap().value == "fn" {
+                else if lexeme.peek().unwrap().value == "fn" {
                     lexeme.next();
+                    let functionname = 
+                        expect(LexSymbol::Identifier, &mut lexeme);
+                    expect(LexSymbol::OpeningBracket, &mut lexeme);
+                    // TODO: take in arguments in functions
+                    expect(LexSymbol::ClosingBracket, &mut lexeme);
+                    println!("FUN DEC | {}", functionname);
+                    parfunctions.push(ParFunction::FunctionDeclaration(
+                        FunctionDeclaration {
+                            name: functionname,
+                            function_contents: vec![]
+                        }   
+                    // TODO: function contents
+                    // We need to insert the function contents (likely as a Vec<ParFn>),
+                    // into the FunctionDeclaration so that we know what's inside the function
+                    // We'll likely do this by turning on some in_function bool variable and
+                    // then just waiting for closing bracket. Then dump everything to contents.
+                    // This does however mean that no functions inside functions. (idc about that tbh)
+                    ));
+                    lexeme.next();
+                    continue
+                    // STOP
                 }
 
                 // Variable declaration
-                if lexeme.peek().unwrap().value == "let" {
-                    // We're declaring a variable
+                else if lexeme.peek().unwrap().value == "let" {
                     lexeme.next();
-                    let varname = expect(LexSymbol::Identifier, &mut lexeme);
+                    let varname = 
+                        expect(LexSymbol::Identifier, &mut lexeme);
                     expect(LexSymbol::EqualSign, &mut lexeme);
-                    let value = multi_expect(
-                    &[LexSymbol::Integer, LexSymbol::String, LexSymbol::Identifier], &mut lexeme);
+                    let value = 
+                        multi_expect(&[LexSymbol::Integer, LexSymbol::String, LexSymbol::Identifier], &mut lexeme);
                     // FIXME: dotting exists !!
+                    // FIXME: take in functions
+                    println!("VAR DEC | {}: {}", varname, value); // DEBUG
                     parfunctions.push(ParFunction::VariableDeclaration(
                         VariableDeclaration {name: varname, value: value}
                     ));
                     expect(LexSymbol::EndLine, &mut lexeme);
-                    lexeme.next();
+                    continue
                     // STOP
                 }
 
-                // Invalid (shouldn't happen unless Lexer messed up)
+                // Invalid (shouldn't happen unless Lexer messed up or we did lexeme.next() incorrectly)
                 else {return Err(format!("Unknown Keyword: {}", lexeme.peek().unwrap().value))}
             }
             LexSymbol::Identifier => {
-                panic!("yuh uh (identifier)")
+                lexeme.next();
+
+                // We're running a function
+                if lexeme.peek().unwrap().symbol == LexSymbol::OpeningBracket {
+                    lexeme.next();
+                    // TODO: take in arguments
+                    expect(LexSymbol::ClosingBracket, &mut lexeme);
+                    expect(LexSymbol::EndLine, &mut lexeme);
+                    continue;
+                    // STOP
+                }
+
+                // We're dotting something
+                else if lexeme.peek().unwrap().symbol == LexSymbol::Dot {
+                    panic!("Dotting Identifiers not implemented!");
+                }
+
+                // Incorrect Identifier
+                else {
+                    return Err(format!("Expected Dot or Function, not {:?}", lexeme.peek().unwrap().symbol))
+                }
             }
 
             // Incorrect start symbols
