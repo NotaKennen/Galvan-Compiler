@@ -1,5 +1,3 @@
-use std::fmt::format;
-
 use crate::{compiler_settings::PAR_DEBUG_PRINTS, lexer::{LexSymbol, Lexeme}};
 
 //
@@ -7,7 +5,7 @@ use crate::{compiler_settings::PAR_DEBUG_PRINTS, lexer::{LexSymbol, Lexeme}};
 //
 
 #[derive(Debug)]
-enum Expression {
+pub enum Expression {
     Number(i64),
     String(String),
     Variable(String),
@@ -16,14 +14,14 @@ enum Expression {
 }
 
 #[derive(Debug)]
-struct Operation {
+pub struct Operation {
     left: Box<Expression>,
     operator: Operator,
     right: Box<Expression>
 }
 
 #[derive(Debug)]
-enum Operator {
+pub enum Operator {
     Addition,
     Subtraction,
     Multiplication,
@@ -33,7 +31,7 @@ enum Operator {
 }
 
 #[derive(Debug)]
-enum Statement {
+pub enum Statement {
     ExpressionStatement(Expression),
     VariableAssignment {name: String, value: Expression},
     FunctionAssignment {name: String, arguments: Vec<String>, body: Vec<Statement>},
@@ -46,6 +44,8 @@ enum Statement {
 //
 
 // Recursive parse functions
+/// Takes in lexeme, recursively gets all the next expressions all the way until a `LINE_SPLITTER`,
+/// or until error 
 fn parse_expression(lexeme: &mut std::iter::Peekable<std::slice::Iter<'_, Lexeme>>) -> Result<Expression, String> {
     let leftexpr = match lexeme.peek().unwrap().symbol {
         LexSymbol::String => {
@@ -55,9 +55,10 @@ fn parse_expression(lexeme: &mut std::iter::Peekable<std::slice::Iter<'_, Lexeme
         }
         LexSymbol::Integer => {
             let strint = &lexeme.peek().unwrap().value;
-            let int: i64 = strint.parse::<i64>().unwrap(); // TODO: Error handling
+            let int = strint.parse::<i64>();
+            if int.is_err() {return Err("Invalid integer".to_string())}
             lexeme.next();
-            Expression::Number(int)
+            Expression::Number(int.unwrap())
 
         }
         LexSymbol::Identifier => {
@@ -105,7 +106,7 @@ fn parse_statement(lexeme: &mut std::iter::Peekable<std::slice::Iter<'_, Lexeme>
 
 /// Expects a certain type of `LexSymbol`. 
 /// 
-/// Returns ´Err(String)´ if not expected, Ok(lexeme.value) if is
+/// Returns `Err(String)` if not expected, `Ok(lexeme.value)` if is
 fn expect(expectation: LexSymbol, lexeme: &mut std::iter::Peekable<std::slice::Iter<'_, Lexeme>>) -> Result<String, String> {
     if lexeme.peek().unwrap().symbol == expectation {
         let returnable = Ok(lexeme.peek().unwrap().value.clone());
@@ -116,8 +117,8 @@ fn expect(expectation: LexSymbol, lexeme: &mut std::iter::Peekable<std::slice::I
     }
 }
 
-/// Parser entrypoint, turns a Vec<Lexeme> to Vec<ParFn>
-pub fn parser(lexemevector: Vec<Lexeme>) -> Result<Vec<String>, String> {
+/// Parser entrypoint, turns a `Vec<Lexeme>` to `Vec<Statement>`
+pub fn parser(lexemevector: Vec<Lexeme>) -> Result<Vec<Statement>, String> {
     if PAR_DEBUG_PRINTS {println!("- - - PARSER")}
 
     let mut outtokens: Vec<Statement> = vec![];
@@ -126,6 +127,7 @@ pub fn parser(lexemevector: Vec<Lexeme>) -> Result<Vec<String>, String> {
         if lexeme.peek() == None {break}
         match lexeme.peek().unwrap().symbol {
 
+            // Keywords, see compiler_settings.rs for specifics
             LexSymbol::Keyword => {
                 // Defining a variable
                 if lexeme.peek().unwrap().value == "let" {
@@ -136,7 +138,7 @@ pub fn parser(lexemevector: Vec<Lexeme>) -> Result<Vec<String>, String> {
                     let expression = {
                         parse_expression(&mut lexeme)
                     }?;
-                    println!("[DEBUG] Got expression:\t{:?}", expression);
+                    if PAR_DEBUG_PRINTS {println!("Parser got expression: {:?}", expression)};
                     outtokens.push(Statement::VariableAssignment { 
                         name: variablename,
                         value: expression 
@@ -147,11 +149,13 @@ pub fn parser(lexemevector: Vec<Lexeme>) -> Result<Vec<String>, String> {
                 }
             }
 
-            LexSymbol::EndLine => {continue}
+            // "Breaking symbols"
+            LexSymbol::EndLine => {lexeme.next(); continue} //  V //TODO: fill that up
             invalid => {return Err(format!("Expected _, not {:?}", invalid))}
         }
     }
 
-    if PAR_DEBUG_PRINTS {println!("- Parser done!")}
+    if PAR_DEBUG_PRINTS {println!("\nStatement dump:\n{:#?}\n\n", outtokens)}
+    if PAR_DEBUG_PRINTS {println!("- - - Parser done!")}
     return Ok(vec![])
 }

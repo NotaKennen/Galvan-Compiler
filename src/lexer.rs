@@ -32,11 +32,8 @@ impl Lexeme {
     pub fn new(symbol: LexSymbol, value: String) -> Self {Lexeme{symbol:symbol, value:value}}
 }
 
-/// Takes in a character, returns a Vec<LexSymbol>
-/// 
-/// Returns empty vector if there's not enough context, in that case run it again with the
-/// next character in the characters vector, if it returns a vector with something in it, clear
-/// characters
+/// Takes in a peekable chars iterator, returns with the next possible Lexeme.
+/// Keep running it until iterator runs out to get out all Lexemes.
 fn lex_token(chars: &mut Peekable<impl Iterator<Item = char>>) -> Option<Lexeme> {
     while let Some(&c) = chars.peek() {
         // Token is whitespace, ignore
@@ -144,6 +141,7 @@ fn lex_token(chars: &mut Peekable<impl Iterator<Item = char>>) -> Option<Lexeme>
 pub fn lexer(content: &str) -> Vec<Lexeme> {
     if LEX_DEBUG_PRINTS {println!("- - - LEXER")}
 
+    // Main lexer loop
     let mut chars = content.chars().peekable();
     let mut tokens = Vec::new();
     while let Some(token) = lex_token(&mut chars) {
@@ -152,6 +150,6 @@ pub fn lexer(content: &str) -> Vec<Lexeme> {
 
     if LEX_DEBUG_PRINTS {println!("LEXED TOKENS:\n{:#?}", tokens)}
 
-    if LEX_DEBUG_PRINTS {println!("- Lexer done!")}
+    if LEX_DEBUG_PRINTS {println!("- - - Lexer done!")}
     return tokens;
 }
