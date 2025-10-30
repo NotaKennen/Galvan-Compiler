@@ -95,8 +95,8 @@ fn lex_token(chars: &mut Peekable<impl Iterator<Item = char>>) -> Option<Lexeme>
     
         // Braces
         if OPEN_BRACES.contains(&c) {
-            if c == ')' {chars.next(); return Some(Lexeme::new(LexSymbol::GenericOpeningBracket, c.to_string()));}
-            else if c == '}' {chars.next(); return Some(Lexeme::new(LexSymbol::FunctionOpeningBracket, c.to_string()));}
+            if c == '(' {chars.next(); return Some(Lexeme::new(LexSymbol::GenericOpeningBracket, c.to_string()));}
+            else if c == '{' {chars.next(); return Some(Lexeme::new(LexSymbol::FunctionOpeningBracket, c.to_string()));}
         }
         if CLOSED_BRACES.contains(&c) {
             if c == ')' {chars.next(); return Some(Lexeme::new(LexSymbol::GenericClosingBracket, c.to_string()));}

@@ -16,10 +16,10 @@ enum Expression {
 }
 
 #[derive(Debug)]
-enum Operation {
-    Left(Box<Expression>),
-    Operator(Operator),
-    Right(Box<Expression>)
+struct Operation {
+    left: Box<Expression>,
+    operator: Operator,
+    right: Box<Expression>
 }
 
 #[derive(Debug)]
@@ -47,38 +47,60 @@ enum Statement {
 
 // Recursive parse functions
 fn parse_expression(lexeme: &mut std::iter::Peekable<std::slice::Iter<'_, Lexeme>>) -> Result<Expression, String> {
-    Err("Not implemented".to_string())
+    let leftexpr = match lexeme.peek().unwrap().symbol {
+        LexSymbol::String => {
+            let content = lexeme.peek().unwrap().value.clone();
+            lexeme.next();
+            Expression::String(content)
+        }
+        LexSymbol::Integer => {
+            let strint = &lexeme.peek().unwrap().value;
+            let int: i64 = strint.parse::<i64>().unwrap(); // TODO: Error handling
+            lexeme.next();
+            Expression::Number(int)
+
+        }
+        LexSymbol::Identifier => {
+            // Check if it's a function or a variable (check for braces)
+            let idname = lexeme.peek().unwrap().value.clone();
+            lexeme.next();
+            if lexeme.peek().unwrap().symbol == LexSymbol::GenericOpeningBracket {
+                // TODO: get args for functions in id parsing
+                lexeme.next();
+                lexeme.next();
+                Expression::FunctionCall { target: idname, args: vec![] }
+            }
+            else {Expression::Variable(idname)}
+        }
+        symbol => {return Err(format!("Expected expression, not {:?}", symbol))}
+    };
+
+    // Note: we run lexeme.next() in the previous set
+    let nextsymbol = lexeme.peek().unwrap().symbol;
+    if nextsymbol == LexSymbol::EndLine {return Ok(leftexpr)}
+    else if nextsymbol == LexSymbol::MathSymbol {
+        let operator = {
+            if lexeme.peek().unwrap().value == "+" {Operator::Addition}
+            else if lexeme.peek().unwrap().value == "-" {Operator::Subtraction}
+            else if lexeme.peek().unwrap().value == "*" {Operator::Multiplication}
+            else if lexeme.peek().unwrap().value == "/" {Operator::Division}
+            else if lexeme.peek().unwrap().value == ">" {Operator::GreaterThan}
+            else if lexeme.peek().unwrap().value == "<" {Operator::LesserThan}
+            else {return Err(format!("{:?} is not considered a valid operator", lexeme.peek().unwrap().value))}
+        };
+        lexeme.next();
+        return Ok(Expression::Operation(
+            Operation { 
+                left: Box::new(leftexpr),
+                operator: operator, 
+                right: Box::new(parse_expression(lexeme)?),
+            }
+        ))
+    }
+    else {return Err(format!("Expected Endline or MathSymbol, not {:?}", nextsymbol))}
 }
 fn parse_statement(lexeme: &mut std::iter::Peekable<std::slice::Iter<'_, Lexeme>>) -> Result<Statement, String> {
     Err("Not implemented".to_string())
-}
-fn parse_operator(lexeme: &mut std::iter::Peekable<std::slice::Iter<'_, Lexeme>>) -> Result<Operator, String> {
-    Err("Not implemented".to_string())
-}
-fn parse_term(lexeme: &mut std::iter::Peekable<std::slice::Iter<'_, Lexeme>>) -> Result<Expression, String> {
-    match lexeme.peek().unwrap().symbol {
-        LexSymbol::Integer => {
-            let result = expect(LexSymbol::Integer, lexeme);
-            if result.is_err() {return Err("Found invalid Integer".to_string())}
-            let int_value: i64 = result?.parse().unwrap();
-            return Ok(Expression::Number(int_value));
-        },
-        LexSymbol::Identifier => {
-            // TODO: identifiers are ass dude
-            return Err("Not implemented".to_string())
-        },
-        LexSymbol::String => {
-            let result = expect(LexSymbol::String, lexeme);
-            if result.is_err() {return Err("Found invalid String".to_string())}
-            return Ok(Expression::String(result?));
-        },
-        _ => {
-            return Err(format!(
-                "Expected term, not {:?}", 
-                lexeme.peek().unwrap().symbol
-            ))
-        }
-    }
 }
 
 /// Expects a certain type of `LexSymbol`. 
@@ -107,47 +129,21 @@ pub fn parser(lexemevector: Vec<Lexeme>) -> Result<Vec<String>, String> {
             LexSymbol::Keyword => {
                 // Defining a variable
                 if lexeme.peek().unwrap().value == "let" {
+                    // TODO: Error handling
                     lexeme.next();
-                    let varname = 
-                        expect(LexSymbol::Identifier, &mut lexeme)?;
+                    let variablename = expect(LexSymbol::Identifier, &mut lexeme)?;
                     expect(LexSymbol::EqualSign, &mut lexeme)?;
-                    
-                    // We need to figure out what is it
-                    // It could be a number, calculation, function or variable
-                    // We do it in this inline function that does stuff
-                    let unsure_expression: Result<Expression, String> = {
-                    if lexeme.peek().unwrap().symbol == LexSymbol::Identifier {
-                        // Could be a function or a variable
-                        Err("Identifiers not implemented".to_string())
-                    }
-                    else if lexeme.peek().unwrap().symbol == LexSymbol::Integer {
-                        // It's a number, it could be a calculation though.
-                        let expression = ();
-                        // TODO: recursion
-                        // Remember that thing about functions and recursion?
-                        // It could probably be used here. Make this (selection)
-                        // into a function, then recurse through that.
-                        // No idea how it'd work in practice though.
-                        Err("Integers not implemented".to_string())
-                    }
-                    else if lexeme.peek().unwrap().symbol == LexSymbol::String {
-                        // It's a string, easy as.
-                        let result = expect(LexSymbol::String, &mut lexeme);
-                        if result.is_err() {return Err("Found invalid String".to_string())}
-                        Ok(Expression::String(result?))
-                    }
-                    else {Err(format!(
-                        "Expected String, Integer or Identifier, not {:?}", 
-                        lexeme.peek().unwrap().symbol
-                    ))}
-                    };
-
-                    if unsure_expression.is_err() {return Err(unsure_expression.unwrap_err())}
-                    let expression = unsure_expression?;
-                    outtokens.push(Statement::VariableAssignment {
-                        name: varname,
-                        value: expression
-                    })
+                    let expression = {
+                        parse_expression(&mut lexeme)
+                    }?;
+                    println!("[DEBUG] Got expression:\t{:?}", expression);
+                    outtokens.push(Statement::VariableAssignment { 
+                        name: variablename,
+                        value: expression 
+                    });
+                    lexeme.next();
+                    continue;
+                    // STOP
                 }
             }
 
