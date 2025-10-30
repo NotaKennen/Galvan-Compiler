@@ -9,12 +9,16 @@ pub enum LexSymbol {
     Identifier,
     String,
     Integer,
-    OpeningBracket,
-    ClosingBracket,
+    GenericOpeningBracket,
+    GenericClosingBracket,
+    FunctionOpeningBracket,
+    FunctionClosingBracket,
     MathSymbol,
     EqualSign,
     EndLine,
     Dot,
+    DoubleDot,
+
 }
 
 #[derive(Clone)]
@@ -91,12 +95,12 @@ fn lex_token(chars: &mut Peekable<impl Iterator<Item = char>>) -> Option<Lexeme>
     
         // Braces
         if OPEN_BRACES.contains(&c) {
-            chars.next();
-            return Some(Lexeme::new(LexSymbol::OpeningBracket, c.to_string()));
+            if c == ')' {chars.next(); return Some(Lexeme::new(LexSymbol::GenericOpeningBracket, c.to_string()));}
+            else if c == '}' {chars.next(); return Some(Lexeme::new(LexSymbol::FunctionOpeningBracket, c.to_string()));}
         }
         if CLOSED_BRACES.contains(&c) {
-            chars.next();
-            return Some(Lexeme::new(LexSymbol::ClosingBracket, c.to_string()));
+            if c == ')' {chars.next(); return Some(Lexeme::new(LexSymbol::GenericClosingBracket, c.to_string()));}
+            else if c == '}' {chars.next(); return Some(Lexeme::new(LexSymbol::FunctionClosingBracket, c.to_string()));}
         }
     
         // Math symbols
@@ -121,6 +125,12 @@ fn lex_token(chars: &mut Peekable<impl Iterator<Item = char>>) -> Option<Lexeme>
         if c == '=' {
             chars.next();
             return Some(Lexeme::new(LexSymbol::EqualSign, '='.to_string()))
+        }
+
+        // Double dot ( : )
+        if c == ':' {
+            chars.next();
+            return Some(Lexeme::new(LexSymbol::DoubleDot, ":".to_string()))
         }
 
         // Unrecognized: skip

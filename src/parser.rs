@@ -1,158 +1,161 @@
-use crate::{compiler_settings::PAR_DEBUG_PRINTS, lexer::{LexSymbol, Lexeme}};
-use std::iter::Peekable;
+use std::fmt::format;
 
-//
-// NOTES
-//
+use crate::{compiler_settings::PAR_DEBUG_PRINTS, lexer::{LexSymbol, Lexeme}};
 
 //
 // STRUCTS
 //
 
-pub enum ParFunction {
-    VariableDeclaration(VariableDeclaration),
-    FunctionDeclaration(FunctionDeclaration),
-    LiteralCalculation(LiteralCalculation),
-    FunctionCall(FunctionCall),
+#[derive(Debug)]
+enum Expression {
+    Number(i64),
+    String(String),
+    Variable(String),
+    Operation(Operation),
+    FunctionCall {target: String, args: Vec<Expression>}
 }
 
-pub struct VariableDeclaration {
-    pub name: String,
-    pub value: String
+#[derive(Debug)]
+enum Operation {
+    Left(Box<Expression>),
+    Operator(Operator),
+    Right(Box<Expression>)
 }
 
-pub struct FunctionDeclaration {
-    name: String,
-    function_contents: Vec<ParFunction>
+#[derive(Debug)]
+enum Operator {
+    Addition,
+    Subtraction,
+    Multiplication,
+    Division,
+    LesserThan,
+    GreaterThan
 }
 
-pub struct LiteralCalculation {}
+#[derive(Debug)]
+enum Statement {
+    ExpressionStatement(Expression),
+    VariableAssignment {name: String, value: Expression},
+    FunctionAssignment {name: String, arguments: Vec<String>, body: Vec<Statement>},
+    While {condition: Expression, body: Vec<Statement>}
 
-pub struct FunctionCall {}
+}
 
 //
 // FUNCTIONS
 //
 
-/// A parser help function to expect a certain value, panics on failure.
-/// 
-/// Takes in a &Lexeme, returns Lexeme.value
-fn expect(expectation: LexSymbol, lexeme: &mut Peekable<std::slice::Iter<'_, Lexeme>>) -> String {
-    if lexeme.peek().unwrap().symbol == expectation {
-        let value = lexeme.peek().unwrap().value.clone();
-        lexeme.next();
-        return value
-    } else { // TODO: don't panic
-        panic!("Expected {:?}, not {:?}", expectation, lexeme.peek().unwrap().symbol);
+// Recursive parse functions
+fn parse_expression(lexeme: &mut std::iter::Peekable<std::slice::Iter<'_, Lexeme>>) -> Result<Expression, String> {
+    Err("Not implemented".to_string())
+}
+fn parse_statement(lexeme: &mut std::iter::Peekable<std::slice::Iter<'_, Lexeme>>) -> Result<Statement, String> {
+    Err("Not implemented".to_string())
+}
+fn parse_operator(lexeme: &mut std::iter::Peekable<std::slice::Iter<'_, Lexeme>>) -> Result<Operator, String> {
+    Err("Not implemented".to_string())
+}
+fn parse_term(lexeme: &mut std::iter::Peekable<std::slice::Iter<'_, Lexeme>>) -> Result<Expression, String> {
+    match lexeme.peek().unwrap().symbol {
+        LexSymbol::Integer => {
+            let result = expect(LexSymbol::Integer, lexeme);
+            if result.is_err() {return Err("Found invalid Integer".to_string())}
+            let int_value: i64 = result?.parse().unwrap();
+            return Ok(Expression::Number(int_value));
+        },
+        LexSymbol::Identifier => {
+            // TODO: identifiers are ass dude
+            return Err("Not implemented".to_string())
+        },
+        LexSymbol::String => {
+            let result = expect(LexSymbol::String, lexeme);
+            if result.is_err() {return Err("Found invalid String".to_string())}
+            return Ok(Expression::String(result?));
+        },
+        _ => {
+            return Err(format!(
+                "Expected term, not {:?}", 
+                lexeme.peek().unwrap().symbol
+            ))
+        }
     }
 }
 
-/// See `expect()`. Same thing, but has multiple possible expectations with a `&[LexSymbol]`
-fn multi_expect(expectations: &[LexSymbol], lexeme: &mut Peekable<std::slice::Iter<'_, Lexeme>>) -> String {
-    if expectations.contains(&lexeme.peek().unwrap().symbol) {
-        let value = lexeme.peek().unwrap().value.clone();
+/// Expects a certain type of `LexSymbol`. 
+/// 
+/// Returns ´Err(String)´ if not expected, Ok(lexeme.value) if is
+fn expect(expectation: LexSymbol, lexeme: &mut std::iter::Peekable<std::slice::Iter<'_, Lexeme>>) -> Result<String, String> {
+    if lexeme.peek().unwrap().symbol == expectation {
+        let returnable = Ok(lexeme.peek().unwrap().value.clone());
         lexeme.next();
-        return value
-    } else { // TODO: don't panic
-        panic!("Expected one of following {:?}; not {:?}", expectations, lexeme.peek().unwrap().symbol);
+        return returnable;
+    } else {
+        return Err(format!("Expected {:?}, not {:?}", expectation, lexeme.peek().unwrap().symbol))
     }
 }
 
 /// Parser entrypoint, turns a Vec<Lexeme> to Vec<ParFn>
-pub fn parser(lexemevector: Vec<Lexeme>) -> Result<Vec<ParFunction>, String> {
+pub fn parser(lexemevector: Vec<Lexeme>) -> Result<Vec<String>, String> {
     if PAR_DEBUG_PRINTS {println!("- - - PARSER")}
 
-    let mut parfunctions: Vec<ParFunction> = Vec::new();
+    let mut outtokens: Vec<Statement> = vec![];
     let mut lexeme = lexemevector.iter().peekable();
     loop {
         if lexeme.peek() == None {break}
         match lexeme.peek().unwrap().symbol {
 
-            // Correct start symbols
             LexSymbol::Keyword => {
-                // Conditionals
-                if lexeme.peek().unwrap().value == "if" {
-                    panic!("Conditionals not implemented!")
-                }
-
-                // Function declaration
-                else if lexeme.peek().unwrap().value == "fn" {
-                    lexeme.next();
-                    let functionname = 
-                        expect(LexSymbol::Identifier, &mut lexeme);
-                    expect(LexSymbol::OpeningBracket, &mut lexeme);
-                    // TODO: take in arguments in functions
-                    expect(LexSymbol::ClosingBracket, &mut lexeme);
-                    println!("FUN DEC | {}", functionname);
-                    parfunctions.push(ParFunction::FunctionDeclaration(
-                        FunctionDeclaration {
-                            name: functionname,
-                            function_contents: vec![]
-                        }   
-                    // TODO: function contents
-                    // We need to insert the function contents (likely as a Vec<ParFn>),
-                    // into the FunctionDeclaration so that we know what's inside the function
-                    // We'll likely do this by turning on some in_function bool variable and
-                    // then just waiting for closing bracket. Then dump everything to contents.
-                    // This does however mean that no functions inside functions. (idc about that tbh)
-                    ));
-                    lexeme.next();
-                    continue
-                    // STOP
-                }
-
-                // Variable declaration
-                else if lexeme.peek().unwrap().value == "let" {
+                // Defining a variable
+                if lexeme.peek().unwrap().value == "let" {
                     lexeme.next();
                     let varname = 
-                        expect(LexSymbol::Identifier, &mut lexeme);
-                    expect(LexSymbol::EqualSign, &mut lexeme);
-                    let value = 
-                        multi_expect(&[LexSymbol::Integer, LexSymbol::String, LexSymbol::Identifier], &mut lexeme);
-                    // FIXME: dotting exists !!
-                    // FIXME: take in functions
-                    println!("VAR DEC | {}: {}", varname, value); // DEBUG
-                    parfunctions.push(ParFunction::VariableDeclaration(
-                        VariableDeclaration {name: varname, value: value}
-                    ));
-                    expect(LexSymbol::EndLine, &mut lexeme);
-                    continue
-                    // STOP
-                }
+                        expect(LexSymbol::Identifier, &mut lexeme)?;
+                    expect(LexSymbol::EqualSign, &mut lexeme)?;
+                    
+                    // We need to figure out what is it
+                    // It could be a number, calculation, function or variable
+                    // We do it in this inline function that does stuff
+                    let unsure_expression: Result<Expression, String> = {
+                    if lexeme.peek().unwrap().symbol == LexSymbol::Identifier {
+                        // Could be a function or a variable
+                        Err("Identifiers not implemented".to_string())
+                    }
+                    else if lexeme.peek().unwrap().symbol == LexSymbol::Integer {
+                        // It's a number, it could be a calculation though.
+                        let expression = ();
+                        // TODO: recursion
+                        // Remember that thing about functions and recursion?
+                        // It could probably be used here. Make this (selection)
+                        // into a function, then recurse through that.
+                        // No idea how it'd work in practice though.
+                        Err("Integers not implemented".to_string())
+                    }
+                    else if lexeme.peek().unwrap().symbol == LexSymbol::String {
+                        // It's a string, easy as.
+                        let result = expect(LexSymbol::String, &mut lexeme);
+                        if result.is_err() {return Err("Found invalid String".to_string())}
+                        Ok(Expression::String(result?))
+                    }
+                    else {Err(format!(
+                        "Expected String, Integer or Identifier, not {:?}", 
+                        lexeme.peek().unwrap().symbol
+                    ))}
+                    };
 
-                // Invalid (shouldn't happen unless Lexer messed up or we did lexeme.next() incorrectly)
-                else {return Err(format!("Unknown Keyword: {}", lexeme.peek().unwrap().value))}
+                    if unsure_expression.is_err() {return Err(unsure_expression.unwrap_err())}
+                    let expression = unsure_expression?;
+                    outtokens.push(Statement::VariableAssignment {
+                        name: varname,
+                        value: expression
+                    })
+                }
             }
-            LexSymbol::Identifier => {
-                lexeme.next();
 
-                // We're running a function
-                if lexeme.peek().unwrap().symbol == LexSymbol::OpeningBracket {
-                    lexeme.next();
-                    // TODO: take in arguments
-                    expect(LexSymbol::ClosingBracket, &mut lexeme);
-                    expect(LexSymbol::EndLine, &mut lexeme);
-                    continue;
-                    // STOP
-                }
-
-                // We're dotting something
-                else if lexeme.peek().unwrap().symbol == LexSymbol::Dot {
-                    panic!("Dotting Identifiers not implemented!");
-                }
-
-                // Incorrect Identifier
-                else {
-                    return Err(format!("Expected Dot or Function, not {:?}", lexeme.peek().unwrap().symbol))
-                }
-            }
-
-            // Incorrect start symbols
-            LexSymbol::EndLine => {continue} // technically correct but idc
-            token => {return Err(format!("Expected statement, not {:?}", token))}
+            LexSymbol::EndLine => {continue}
+            invalid => {return Err(format!("Expected _, not {:?}", invalid))}
         }
     }
 
     if PAR_DEBUG_PRINTS {println!("- Parser done!")}
-    return Ok(parfunctions)
+    return Ok(vec![])
 }
