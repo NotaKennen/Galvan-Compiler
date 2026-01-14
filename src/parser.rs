@@ -1,5 +1,8 @@
 use crate::{compiler_settings::PAR_DEBUG_PRINTS, lexer::{LexSymbol, Lexeme}};
 
+// TODO: make all lexeme.peek().unwrap()'s use a safe function
+// Insert EOF lexeme if it hits a None
+
 //
 // STRUCTS
 //
@@ -43,43 +46,52 @@ pub enum Statement {
 // FUNCTIONS
 //
 
-// Recursive parse functions
-/// Takes in lexeme, recursively gets all the next expressions all the way until a `LINE_SPLITTER`,
-/// or until error 
-fn parse_expression(lexeme: &mut std::iter::Peekable<std::slice::Iter<'_, Lexeme>>) -> Result<Expression, String> {
-    let leftexpr = match lexeme.peek().unwrap().symbol {
+/// Expects the next lexeme to be a valid expression, gets it, then sorts it into a valid Expression.
+/// Runs `lexeme.next()` once.
+/// 
+/// Expects format `(Expr)`
+fn parse_single_expression(lexeme: &mut std::iter::Peekable<std::slice::Iter<'_, Lexeme>>) -> Result<Expression, String> {
+    match lexeme.peek().unwrap().symbol {
         LexSymbol::String => {
             let content = lexeme.peek().unwrap().value.clone();
             lexeme.next();
-            Expression::String(content)
+            Ok(Expression::String(content))
         }
         LexSymbol::Integer => {
             let strint = &lexeme.peek().unwrap().value;
             let int = strint.parse::<i64>();
             if int.is_err() {return Err("Invalid integer".to_string())}
             lexeme.next();
-            Expression::Number(int.unwrap())
-
+            Ok(Expression::Number(int.unwrap()))
         }
         LexSymbol::Identifier => {
             // Check if it's a function or a variable (check for braces)
             let idname = lexeme.peek().unwrap().value.clone();
             lexeme.next();
             if lexeme.peek().unwrap().symbol == LexSymbol::GenericOpeningBracket {
-                // TODO: get args for functions in id parsing
+                // We're inside the first bracket, cursor pointing at it.
                 lexeme.next();
-                lexeme.next();
-                Expression::FunctionCall { target: idname, args: vec![] }
+                let args = parse_arguments(lexeme)?;
+                lexeme.next(); // Get over last endbracket
+                Ok(Expression::FunctionCall { target: idname, args: args })
             }
-            else {Expression::Variable(idname)}
+            else {Ok(Expression::Variable(idname))}
         }
         symbol => {return Err(format!("Expected expression, not {:?}", symbol))}
-    };
+    }
+}
 
-    // Note: we run lexeme.next() in the previous set
+/// Takes in lexeme, recursively gets all the next expressions all the way until an invalid symbol. 
+/// Stops on anything that's not a mathsymbol.
+/// 
+/// Expects format `(Expr) [MathSymbol] [Expr] ...`
+fn parse_expression(lexeme: &mut std::iter::Peekable<std::slice::Iter<'_, Lexeme>>) -> Result<Expression, String> {
+    let res_leftexpr = parse_single_expression(lexeme);
+    if res_leftexpr.is_err() {return Err(res_leftexpr.unwrap_err())}
+    let leftexpr = res_leftexpr?;
+
     let nextsymbol = lexeme.peek().unwrap().symbol;
-    if nextsymbol == LexSymbol::EndLine {return Ok(leftexpr)}
-    else if nextsymbol == LexSymbol::MathSymbol {
+    if nextsymbol == LexSymbol::MathSymbol {
         let operator = {
             if lexeme.peek().unwrap().value == "+" {Operator::Addition}
             else if lexeme.peek().unwrap().value == "-" {Operator::Subtraction}
@@ -98,15 +110,38 @@ fn parse_expression(lexeme: &mut std::iter::Peekable<std::slice::Iter<'_, Lexeme
             }
         ))
     }
-    else {return Err(format!("Expected Endline or MathSymbol, not {:?}", nextsymbol))}
+    else {return Ok(leftexpr)}
 }
-fn parse_statement(lexeme: &mut std::iter::Peekable<std::slice::Iter<'_, Lexeme>>) -> Result<Statement, String> {
-    Err("Not implemented".to_string())
+
+/// Get all following arguments for a function. Runs `lexeme.next` until closing bracket,
+/// (cursor to closebracket)
+/// 
+/// Expects format `[Expr] [Comma] [Expr] [Comma] [Expr] ... (ClosingBracket)`. 
+fn parse_arguments(lexeme: &mut std::iter::Peekable<std::slice::Iter<'_, Lexeme>>) -> Result<Vec<Expression>, String> {
+    if lexeme.peek().unwrap().symbol == LexSymbol::GenericClosingBracket {lexeme.next(); return Ok(vec![])}
+
+    // Get the first argument
+    let mut args: Vec<Expression> = vec![];
+    let expr = parse_expression(lexeme);
+    if expr.is_err() {return Err(expr.unwrap_err())}
+    args.push(expr?);
+
+    // Use recursion to get the rest of the arguments
+    if lexeme.peek().unwrap().symbol == LexSymbol::Comma {
+        lexeme.next();
+        let res_args = parse_arguments(lexeme);
+        if res_args.is_err() {return Err(res_args.unwrap_err())}
+        args.append(&mut res_args.unwrap());
+    }
+
+    Ok(args)
 }
 
 /// Expects a certain type of `LexSymbol`. 
 /// 
 /// Returns `Err(String)` if not expected, `Ok(lexeme.value)` if is
+/// 
+/// Moves to the next Lexeme
 fn expect(expectation: LexSymbol, lexeme: &mut std::iter::Peekable<std::slice::Iter<'_, Lexeme>>) -> Result<String, String> {
     if lexeme.peek().unwrap().symbol == expectation {
         let returnable = Ok(lexeme.peek().unwrap().value.clone());
@@ -143,15 +178,15 @@ pub fn parser(lexemevector: Vec<Lexeme>) -> Result<Vec<Statement>, String> {
                         name: variablename,
                         value: expression 
                     });
-                    lexeme.next();
+                    expect(LexSymbol::EndLine, &mut lexeme)?;
                     continue;
                     // STOP
                 }
             }
 
             // "Breaking symbols"
-            LexSymbol::EndLine => {lexeme.next(); continue} //  V //TODO: fill that up
-            invalid => {return Err(format!("Expected _, not {:?}", invalid))}
+            LexSymbol::EndLine => {lexeme.next(); continue}
+            invalid => {return Err(format!("Expected keyword, not {:?}", invalid))}
         }
     }
 

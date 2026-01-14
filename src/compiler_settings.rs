@@ -8,6 +8,9 @@ pub const SRC_FILE: &str = "sourcefile";    // Name of the sourcefile (move to a
 //
 // Lexer
 //
+
+// TODO: make settings better
+// There's a ton of hardcoded values in the lexer, bring them here.
 pub const LEX_DEBUG_PRINTS: bool = true;
 pub const KEYWORDS: [&str; 3] = 
     ["let", "if", "fn"];

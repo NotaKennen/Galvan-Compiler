@@ -18,7 +18,7 @@ pub enum LexSymbol {
     EndLine,
     Dot,
     DoubleDot,
-
+    Comma,
 }
 
 #[derive(Clone)]
@@ -116,6 +116,12 @@ fn lex_token(chars: &mut Peekable<impl Iterator<Item = char>>) -> Option<Lexeme>
         if c == '.' {
             chars.next();
             return Some(Lexeme::new(LexSymbol::Dot, '.'.to_string()))
+        }
+
+        // Comma
+        if c == ',' {
+            chars.next();
+            return Some(Lexeme::new(LexSymbol::Comma, ','.to_string()))
         }
 
         // Equal Sign
