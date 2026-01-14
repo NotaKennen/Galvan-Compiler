@@ -13,7 +13,7 @@ pub const SRC_FILE: &str = "sourcefile";    // Name of the sourcefile (move to a
 // There's a ton of hardcoded values in the lexer, bring them here.
 pub const LEX_DEBUG_PRINTS: bool = true;
 pub const KEYWORDS: [&str; 3] = 
-    ["let", "if", "fn"];
+    ["let", "if", "function"];
 pub const MATH_SYMBOLS: [char; 6] = 
     ['+', '-', '*', '/', '<', '>'];
 pub const WHITESPACE: [char; 4] = 

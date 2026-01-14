@@ -146,6 +146,61 @@ fn parse_arguments(lexeme: &mut std::iter::Peekable<std::slice::Iter<'_, Lexeme>
     Ok(args)
 }
 
+fn parse_single(lexeme: &mut std::iter::Peekable<std::slice::Iter<'_, Lexeme>>) -> Result<Option<Statement>, String> { 
+    let mut outtoken: Option<Statement> = None;
+    match peek_lexeme(lexeme).symbol {
+        // Keywords, see compiler_settings.rs for specifics
+        LexSymbol::Keyword => {
+            // TODO: Automatically fetch keywords from settings or something
+
+            // Defining a variable
+            if peek_lexeme(lexeme).value == "let" {
+                lexeme.next();
+                let variablename = expect(LexSymbol::Identifier, lexeme)?;
+                expect(LexSymbol::EqualSign, lexeme)?;
+                let expression = {
+                    parse_expression(lexeme)
+                }?;
+                if PAR_DEBUG_PRINTS {println!("Parser got expression: {:?}", expression)};
+                outtoken = Some(Statement::VariableAssignment { 
+                    name: variablename,
+                    value: expression 
+                });
+                expect(LexSymbol::EndLine, lexeme)?;
+                // STOP
+            }
+        
+            // Defining function
+            else if peek_lexeme(lexeme).value == "function" {
+                lexeme.next();
+                let functionname = expect(LexSymbol::Identifier, lexeme)?;
+                expect(LexSymbol::GenericOpeningBracket, lexeme)?;
+                let arguments = parse_arguments(lexeme)?;
+                expect(LexSymbol::FunctionOpeningBracket, lexeme)?;
+                let internals = parse_until_symbol(LexSymbol::FunctionClosingBracket, lexeme);
+
+                println!("NAME: {:#?}\n\nARGUMENTS: {:#?}\n\nINTERNALS: {:#?}", functionname, arguments, internals);
+            }
+        }
+
+        // "Breaking symbols"
+        LexSymbol::EndLine => {lexeme.next();}
+        invalid => {return Err(format!("Expected keyword, not {:?}", invalid))}
+    }
+    return Ok(outtoken);
+}
+
+/// Keeps parsing the statements until it hits a specified symbol.
+/// 
+/// Expects format `[Expr] (anything) [EndLine]...`
+fn parse_until_symbol(stopsymbol: LexSymbol, lexeme: &mut std::iter::Peekable<std::slice::Iter<'_, Lexeme>>) -> Result<Vec<Statement>, String> {
+    let statements: Vec<Statement> = vec![];
+    loop {
+        if peek_lexeme(lexeme).symbol == stopsymbol {return Ok(statements)}
+
+    }
+}
+
 /// Expects a certain type of `LexSymbol`. 
 /// 
 /// Returns `Err(String)` if not expected, `Ok(lexeme.value)` if is
@@ -162,41 +217,15 @@ fn expect(expectation: LexSymbol, lexeme: &mut std::iter::Peekable<std::slice::I
 }
 
 /// Parser entrypoint, turns a `Vec<Lexeme>` to `Vec<Statement>`
-pub fn parser(lexemevector: Vec<Lexeme>) -> Result<Vec<Statement>, String> {
+pub fn parser(mut lexeme: std::iter::Peekable<std::slice::Iter<'_, Lexeme>>) -> Result<Vec<Statement>, String> {
     if PAR_DEBUG_PRINTS {println!("- - - PARSER")}
 
-    let mut outtokens: Vec<Statement> = vec![];
-    let mut lexeme = lexemevector.iter().peekable();
+    let mut outtokens: Vec<Statement> = vec![];  
     loop {
-        if lexeme.peek() == None {break}
-        match peek_lexeme(&mut lexeme).symbol {
-
-            // Keywords, see compiler_settings.rs for specifics
-            LexSymbol::Keyword => {
-                // Defining a variable
-                if peek_lexeme(&mut lexeme).value == "let" {
-                    // TODO: Error handling
-                    lexeme.next();
-                    let variablename = expect(LexSymbol::Identifier, &mut lexeme)?;
-                    expect(LexSymbol::EqualSign, &mut lexeme)?;
-                    let expression = {
-                        parse_expression(&mut lexeme)
-                    }?;
-                    if PAR_DEBUG_PRINTS {println!("Parser got expression: {:?}", expression)};
-                    outtokens.push(Statement::VariableAssignment { 
-                        name: variablename,
-                        value: expression 
-                    });
-                    expect(LexSymbol::EndLine, &mut lexeme)?;
-                    continue;
-                    // STOP
-                }
-            }
-
-            // "Breaking symbols"
-            LexSymbol::EndLine => {lexeme.next(); continue}
-            invalid => {return Err(format!("Expected keyword, not {:?}", invalid))}
-        }
+        if peek_lexeme(&mut lexeme).symbol == LexSymbol::EOF {break}
+        let statement = parse_single(&mut lexeme)?;
+        if statement.is_none() {continue}
+        else {outtokens.push(statement.unwrap());}
     }
 
     if PAR_DEBUG_PRINTS {println!("\nStatement dump:\n{:#?}\n\n", outtokens)}

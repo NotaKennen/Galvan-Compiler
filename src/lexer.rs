@@ -1,6 +1,9 @@
 use crate::compiler_settings::{CLOSED_BRACES, KEYWORDS, LEX_DEBUG_PRINTS, LINE_SPLITTER, MATH_SYMBOLS, OPEN_BRACES, WHITESPACE};
 use std::iter::Peekable;
 
+// TODO: add line and character locations in Lexer
+// add them to LexSymbol to help debug code (for users)
+
 #[derive(Debug)]
 #[derive(PartialEq)]
 #[derive(Clone, Copy)]
