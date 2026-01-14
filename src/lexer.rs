@@ -19,6 +19,7 @@ pub enum LexSymbol {
     Dot,
     DoubleDot,
     Comma,
+    EOF,
 }
 
 #[derive(Clone)]
