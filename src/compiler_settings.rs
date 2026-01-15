@@ -10,12 +10,11 @@ pub const SRC_FILE: &str = "sourcefile";    // Name of the sourcefile (move to a
 //
 
 // TODO: make settings better
-// There's a ton of hardcoded values in the lexer, bring them here.
+// // There's a ton of hardcoded values in the lexer, bring them here.
+// At this rate I might as well hardcode the rest
 pub const LEX_DEBUG_PRINTS: bool = true;
 pub const KEYWORDS: [&str; 5] = 
     ["let", "if", "function", "call", "return"];
-pub const MATH_SYMBOLS: [char; 6] = 
-    ['+', '-', '*', '/', '<', '>'];
 pub const WHITESPACE: [char; 4] = 
     [' ', '\n', '\t', '\r'];
 pub const OPEN_BRACES: [char; 3] = 

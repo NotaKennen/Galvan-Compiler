@@ -28,7 +28,11 @@ pub enum Operator {
     Multiplication,
     Division,
     LesserThan,
-    GreaterThan
+    GreaterThan,
+    EqualLesserThan,
+    EqualGreaterThan,
+    EqualTo,
+    Inequal,
 }
 
 #[derive(Debug)]
@@ -36,8 +40,8 @@ pub enum Statement {
     ExpressionStatement(Expression),
     VariableAssignment {name: String, value: Expression},
     FunctionAssignment {name: String, arguments: Vec<Expression>, body: Vec<Statement>},
-    While {condition: Expression, body: Vec<Statement>}
-
+    While {condition: Expression, body: Vec<Statement>},
+    ConditionalStatement {condition: Expression, body: Vec<Statement>},
 }
 
 //
@@ -103,6 +107,8 @@ fn parse_expression(lexeme: &mut std::iter::Peekable<std::slice::Iter<'_, Lexeme
     let nextsymbol = peek_lexeme(lexeme).symbol;
     if nextsymbol == LexSymbol::MathSymbol {
         let operator = {
+            // TODO: Use to Match here instead
+            // All peek_lexeme()'s in this function
             if peek_lexeme(lexeme).value == "+" {Operator::Addition}
             else if peek_lexeme(lexeme).value == "-" {Operator::Subtraction}
             else if peek_lexeme(lexeme).value == "*" {Operator::Multiplication}
@@ -119,8 +125,23 @@ fn parse_expression(lexeme: &mut std::iter::Peekable<std::slice::Iter<'_, Lexeme
                 right: Box::new(parse_expression(lexeme)?),
             }
         ))
-    }
-    else {return Ok(leftexpr)}
+    } else if nextsymbol == LexSymbol::OperationalSymbol {
+        let operator: Operator = {
+            if peek_lexeme(lexeme).value == "==" {Operator::EqualTo}
+            else if peek_lexeme(lexeme).value == ">=" {Operator::EqualGreaterThan}
+            else if peek_lexeme(lexeme).value == "<=" {Operator::EqualLesserThan}
+            else if peek_lexeme(lexeme).value == "!=" {Operator::Inequal}
+            else {return Err(format!("{:?} is not considered a valid operator", peek_lexeme(lexeme).value))}
+        };
+        lexeme.next();
+        return Ok(Expression::Operation(
+            Operation {
+                left: Box::new(leftexpr),
+                operator: operator,
+                right: Box::new(parse_expression(lexeme)?)
+            }
+        ))
+    } else {return Ok(leftexpr)}
 }
 
 /// Get all following arguments for a function. Runs `lexeme.next` until closing bracket,
@@ -219,6 +240,22 @@ fn parse_single(lexeme: &mut std::iter::Peekable<std::slice::Iter<'_, Lexeme>>) 
                     }
                 ))
             }
+
+            // Conditionals
+            else if peek_lexeme(lexeme).value == "if" {
+                lexeme.next();
+                expect(LexSymbol::GenericOpeningBracket, lexeme)?;
+                let condition = parse_expression(lexeme)?;
+                expect(LexSymbol::GenericClosingBracket, lexeme)?;
+                expect(LexSymbol::FunctionOpeningBracket, lexeme)?;
+                let body = parse_until_symbol(LexSymbol::FunctionClosingBracket, lexeme)?;
+                lexeme.next();
+
+                outtoken = Some(Statement::ConditionalStatement {
+                    condition, 
+                    body, 
+                })
+            }
         }
 
         // "Breaking symbols"
@@ -273,7 +310,7 @@ pub fn parser(mut lexeme: std::iter::Peekable<std::slice::Iter<'_, Lexeme>>) -> 
         else {outtokens.push(statement.unwrap());}
     }
 
-    if PAR_DEBUG_PRINTS {println!("\nStatement dump:\n{:#?}\n\n", outtokens)}
+    if PAR_DEBUG_PRINTS {println!("\nStatement dump:\n{:#?}\n", outtokens)}
     if PAR_DEBUG_PRINTS {println!("- - - Parser done!")}
     return Ok(vec![])
 }

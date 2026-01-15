@@ -5,6 +5,7 @@ mod parser; use crate::parser::*;
 
 fn main() {
     // We assume the source file exists (fix later)
+    // TODO: Get source file via args
     let srccontents = load_file(SRC_FILE).unwrap();
 
     let lexersymbols = lexer(&srccontents);

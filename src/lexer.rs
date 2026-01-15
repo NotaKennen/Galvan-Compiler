@@ -1,4 +1,4 @@
-use crate::compiler_settings::{CLOSED_BRACES, KEYWORDS, LEX_DEBUG_PRINTS, LINE_SPLITTER, MATH_SYMBOLS, OPEN_BRACES, WHITESPACE};
+use crate::compiler_settings::{CLOSED_BRACES, KEYWORDS, LEX_DEBUG_PRINTS, LINE_SPLITTER, OPEN_BRACES, WHITESPACE};
 use std::iter::Peekable;
 
 // TODO: add line and character locations in Lexer
@@ -12,8 +12,8 @@ pub enum LexSymbol {
     Identifier,
     String,
     Integer,
-    GenericOpeningBracket,
-    GenericClosingBracket,
+    GenericOpeningBracket, // TODO: Compress brackets to one (or two) symbols
+    GenericClosingBracket, // ^ Open/close-bracket with value "(" or ")" etc...
     FunctionOpeningBracket,
     FunctionClosingBracket,
     MathSymbol,
@@ -23,6 +23,7 @@ pub enum LexSymbol {
     DoubleDot,
     Comma,
     EOF,
+    OperationalSymbol,
 }
 
 #[derive(Clone)]
@@ -95,25 +96,92 @@ fn lex_token(chars: &mut Peekable<impl Iterator<Item = char>>) -> Option<Lexeme>
         }
     
         // Braces
-        if OPEN_BRACES.contains(&c) {
+        if OPEN_BRACES.contains(&c) { // TODO: This brace setup is stupid, make it better
             if c == '(' {chars.next(); return Some(Lexeme::new(LexSymbol::GenericOpeningBracket, c.to_string()));}
             else if c == '{' {chars.next(); return Some(Lexeme::new(LexSymbol::FunctionOpeningBracket, c.to_string()));}
         }
         if CLOSED_BRACES.contains(&c) {
             if c == ')' {chars.next(); return Some(Lexeme::new(LexSymbol::GenericClosingBracket, c.to_string()));}
             else if c == '}' {chars.next(); return Some(Lexeme::new(LexSymbol::FunctionClosingBracket, c.to_string()));}
-        }
+        } 
     
-        // Math symbols
-        if MATH_SYMBOLS.contains(&c) {
-            chars.next();
-            return Some(Lexeme::new(LexSymbol::MathSymbol, c.to_string()));
-        }
-
         // Line splitter
         if c == LINE_SPLITTER {
             chars.next();
             return Some(Lexeme::new(LexSymbol::EndLine, LINE_SPLITTER.to_string()))
+        }
+
+        // Operational Symbols and Math Symbols
+        if c == '=' || c == '!' || c == '<' || c == '>' {
+            // I LOVE MASSIVE READ TABLES MMMMMMMMM
+            match c {
+                '=' => {
+                    chars.next();
+                    let c = chars.peek().unwrap(); // FIXME: Unwrap :(
+                    match c {                             // Fix the ones below too
+                        '=' => {
+                            chars.next();
+                            return Some(Lexeme::new(LexSymbol::OperationalSymbol, "==".to_string()))
+                        }
+                        '>' => {
+                            chars.next();
+                            return Some(Lexeme::new(LexSymbol::OperationalSymbol, ">=".to_string()))
+                        }
+                        '<' => {
+                            chars.next();
+                            return Some(Lexeme::new(LexSymbol::OperationalSymbol, "<=".to_string()))
+                        }
+                        '!' => {
+                            chars.next();
+                            return Some(Lexeme::new(LexSymbol::OperationalSymbol, "!=".to_string()))
+                        }
+                        _ => {
+                            return Some(Lexeme::new(LexSymbol::EqualSign, "=".to_string()))
+                        }
+                    }
+                },
+                '!' => {
+                    chars.next();
+                    let c = chars.peek().unwrap();
+                    match c {
+                        '=' => {
+                            chars.next();
+                            return Some(Lexeme::new(LexSymbol::OperationalSymbol, "!=".to_string()))
+                        }
+                        _ => {
+                            continue;
+                        }
+                        
+                    }
+                },
+                '<' => {
+                    chars.next();
+                    let c = chars.peek().unwrap();
+                    match c {
+                        '=' => {
+                            chars.next();
+                            return Some(Lexeme::new(LexSymbol::OperationalSymbol, "<=".to_string()))
+                        }
+                        _ => {
+                            return Some(Lexeme::new(LexSymbol::MathSymbol, "<".to_string()))
+                        }
+                    }
+                },
+                '>' => {
+                    chars.next();
+                    let c = chars.peek().unwrap();
+                    match c {
+                        '=' => {
+                            chars.next();
+                            return Some(Lexeme::new(LexSymbol::OperationalSymbol, ">=".to_string()))
+                        }
+                        _ => {
+                            return Some(Lexeme::new(LexSymbol::MathSymbol, ">".to_string()))
+                        }
+                    }
+                },
+                _ => {chars.next(); continue;} // Should never happen
+            }
         }
 
         // Dot
@@ -126,12 +194,6 @@ fn lex_token(chars: &mut Peekable<impl Iterator<Item = char>>) -> Option<Lexeme>
         if c == ',' {
             chars.next();
             return Some(Lexeme::new(LexSymbol::Comma, ','.to_string()))
-        }
-
-        // Equal Sign
-        if c == '=' {
-            chars.next();
-            return Some(Lexeme::new(LexSymbol::EqualSign, '='.to_string()))
         }
 
         // Double dot ( : )
