@@ -177,7 +177,6 @@ fn parse_single(lexeme: &mut std::iter::Peekable<std::slice::Iter<'_, Lexeme>>) 
     match peek_lexeme(lexeme).symbol {
         // Keywords, see compiler_settings.rs for specifics
         LexSymbol::Keyword => {
-            // TODO: Automatically fetch keywords from settings or something
             // TODO: Use match here instead
 
             // Defining a variable
@@ -222,6 +221,7 @@ fn parse_single(lexeme: &mut std::iter::Peekable<std::slice::Iter<'_, Lexeme>>) 
                 expect(LexSymbol::GenericOpeningBracket, lexeme)?;
                 let arguments = parse_arguments(lexeme)?;
                 expect(LexSymbol::GenericClosingBracket, lexeme)?;
+                expect(LexSymbol::EndLine, lexeme)?;
                 outtoken = Some(Statement::ExpressionStatement(
                         Expression::FunctionCall { 
                         target: target,
@@ -234,6 +234,7 @@ fn parse_single(lexeme: &mut std::iter::Peekable<std::slice::Iter<'_, Lexeme>>) 
             else if peek_lexeme(lexeme).value == "return" {
                 lexeme.next();
                 let returning = parse_expression(lexeme)?;
+                expect(LexSymbol::EndLine, lexeme)?;
                 outtoken = Some(Statement::ExpressionStatement(
                     Expression::ReturnValue { 
                         value: Box::new(returning)
@@ -256,6 +257,25 @@ fn parse_single(lexeme: &mut std::iter::Peekable<std::slice::Iter<'_, Lexeme>>) 
                     body, 
                 })
             }
+
+            // While loops
+            else if peek_lexeme(lexeme).value == "while" {
+                // Surprisingly similar to IFs hmmm...
+                lexeme.next();
+                expect(LexSymbol::GenericOpeningBracket, lexeme)?;
+                let condition = parse_expression(lexeme)?;
+                expect(LexSymbol::GenericClosingBracket, lexeme)?;
+                expect(LexSymbol::FunctionOpeningBracket, lexeme)?;
+                let body = parse_until_symbol(LexSymbol::FunctionClosingBracket, lexeme)?;
+                lexeme.next();
+
+                outtoken = Some(Statement::While {
+                    condition, 
+                    body 
+                })
+            }
+
+            else {return Err(format!("Unexpected keyword '{}', non-matching Lexer-Parser versions?", peek_lexeme(lexeme).value))}
         }
 
         // "Breaking symbols"

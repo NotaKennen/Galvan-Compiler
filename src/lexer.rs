@@ -111,7 +111,7 @@ fn lex_token(chars: &mut Peekable<impl Iterator<Item = char>>) -> Option<Lexeme>
             return Some(Lexeme::new(LexSymbol::EndLine, LINE_SPLITTER.to_string()))
         }
 
-        // Operational Symbols and Math Symbols
+        // Operational Symbols and GT/LT Math Symbols
         if c == '=' || c == '!' || c == '<' || c == '>' {
             // I LOVE MASSIVE READ TABLES MMMMMMMMM
             match c {
@@ -182,6 +182,12 @@ fn lex_token(chars: &mut Peekable<impl Iterator<Item = char>>) -> Option<Lexeme>
                 },
                 _ => {chars.next(); continue;} // Should never happen
             }
+        }
+
+        // Rest of the mathsymbols
+        if c == '+' || c == '-' || c == '*' || c == '/' {
+            chars.next();
+            return Some(Lexeme::new(LexSymbol::MathSymbol, c.to_string()))
         }
 
         // Dot
