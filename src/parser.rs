@@ -10,7 +10,8 @@ pub enum Expression {
     String(String),
     Variable(String),
     Operation(Operation),
-    FunctionCall {target: String, args: Vec<Expression>}
+    FunctionCall {target: String, args: Vec<Expression>},
+    ReturnValue {value: Box<Expression>} // FIXME: probably not correct type
 }
 
 #[derive(Debug)]
@@ -34,7 +35,7 @@ pub enum Operator {
 pub enum Statement {
     ExpressionStatement(Expression),
     VariableAssignment {name: String, value: Expression},
-    FunctionAssignment {name: String, arguments: Vec<String>, body: Vec<Statement>},
+    FunctionAssignment {name: String, arguments: Vec<Expression>, body: Vec<Statement>},
     While {condition: Expression, body: Vec<Statement>}
 
 }
@@ -127,13 +128,15 @@ fn parse_expression(lexeme: &mut std::iter::Peekable<std::slice::Iter<'_, Lexeme
 /// 
 /// Expects format `[Expr] [Comma] [Expr] [Comma] [Expr] ... (ClosingBracket)`. 
 fn parse_arguments(lexeme: &mut std::iter::Peekable<std::slice::Iter<'_, Lexeme>>) -> Result<Vec<Expression>, String> {
-    if peek_lexeme(lexeme).symbol == LexSymbol::GenericClosingBracket {lexeme.next(); return Ok(vec![])}
+    if peek_lexeme(lexeme).symbol == LexSymbol::GenericClosingBracket {return Ok(vec![])}
 
     // Get the first argument
     let mut args: Vec<Expression> = vec![];
     let expr = parse_expression(lexeme);
     if expr.is_err() {return Err(expr.unwrap_err())}
     args.push(expr?);
+    // TODO: add types to argument parsing
+    // (and to the rest of the lang as well ig)
 
     // Use recursion to get the rest of the arguments
     if peek_lexeme(lexeme).symbol == LexSymbol::Comma {
@@ -146,12 +149,15 @@ fn parse_arguments(lexeme: &mut std::iter::Peekable<std::slice::Iter<'_, Lexeme>
     Ok(args)
 }
 
+/// Parses a singular "line", basically anything until `LexSymbol::EndLine`.
+/// Unlike `parse_single_expression()`, this one includes keywords and such.
 fn parse_single(lexeme: &mut std::iter::Peekable<std::slice::Iter<'_, Lexeme>>) -> Result<Option<Statement>, String> { 
     let mut outtoken: Option<Statement> = None;
     match peek_lexeme(lexeme).symbol {
         // Keywords, see compiler_settings.rs for specifics
         LexSymbol::Keyword => {
             // TODO: Automatically fetch keywords from settings or something
+            // TODO: Use match here instead
 
             // Defining a variable
             if peek_lexeme(lexeme).value == "let" {
@@ -161,7 +167,6 @@ fn parse_single(lexeme: &mut std::iter::Peekable<std::slice::Iter<'_, Lexeme>>) 
                 let expression = {
                     parse_expression(lexeme)
                 }?;
-                if PAR_DEBUG_PRINTS {println!("Parser got expression: {:?}", expression)};
                 outtoken = Some(Statement::VariableAssignment { 
                     name: variablename,
                     value: expression 
@@ -176,10 +181,43 @@ fn parse_single(lexeme: &mut std::iter::Peekable<std::slice::Iter<'_, Lexeme>>) 
                 let functionname = expect(LexSymbol::Identifier, lexeme)?;
                 expect(LexSymbol::GenericOpeningBracket, lexeme)?;
                 let arguments = parse_arguments(lexeme)?;
+                // FIXME: You can pass function calls etc as function arguments
+                lexeme.next(); // Jump over ending bracket
                 expect(LexSymbol::FunctionOpeningBracket, lexeme)?;
-                let internals = parse_until_symbol(LexSymbol::FunctionClosingBracket, lexeme);
+                let internals = parse_until_symbol(LexSymbol::FunctionClosingBracket, lexeme)?;
+                lexeme.next();
 
-                println!("NAME: {:#?}\n\nARGUMENTS: {:#?}\n\nINTERNALS: {:#?}", functionname, arguments, internals);
+                outtoken = Some(Statement::FunctionAssignment {
+                    name: functionname, 
+                    arguments: arguments, 
+                    body: internals, 
+                });
+            }
+
+            // Calling function
+            else if peek_lexeme(lexeme).value == "call" {
+                lexeme.next();
+                let target = expect(LexSymbol::Identifier, lexeme)?;
+                expect(LexSymbol::GenericOpeningBracket, lexeme)?;
+                let arguments = parse_arguments(lexeme)?;
+                expect(LexSymbol::GenericClosingBracket, lexeme)?;
+                outtoken = Some(Statement::ExpressionStatement(
+                        Expression::FunctionCall { 
+                        target: target,
+                        args: arguments,
+                    }
+                ));
+            }
+
+            // Function returns
+            else if peek_lexeme(lexeme).value == "return" {
+                lexeme.next();
+                let returning = parse_expression(lexeme)?;
+                outtoken = Some(Statement::ExpressionStatement(
+                    Expression::ReturnValue { 
+                        value: Box::new(returning)
+                    }
+                ))
             }
         }
 
@@ -191,21 +229,28 @@ fn parse_single(lexeme: &mut std::iter::Peekable<std::slice::Iter<'_, Lexeme>>) 
 }
 
 /// Keeps parsing the statements until it hits a specified symbol.
+/// This is basically just `parser()`, just that the EOF check is changed to `stopsymbol`
 /// 
 /// Expects format `[Expr] (anything) [EndLine]...`
 fn parse_until_symbol(stopsymbol: LexSymbol, lexeme: &mut std::iter::Peekable<std::slice::Iter<'_, Lexeme>>) -> Result<Vec<Statement>, String> {
-    let statements: Vec<Statement> = vec![];
+    let mut outtokens: Vec<Statement> = vec![];  
     loop {
-        if peek_lexeme(lexeme).symbol == stopsymbol {return Ok(statements)}
-
+        if peek_lexeme(lexeme).symbol == stopsymbol || peek_lexeme(lexeme).symbol == LexSymbol::EOF
+            {break}
+        let statement = parse_single(lexeme)?;
+        if statement.is_none() {continue}
+        else {outtokens.push(statement.unwrap());}
     }
+    return Ok(outtokens);
 }
 
 /// Expects a certain type of `LexSymbol`. 
 /// 
-/// Returns `Err(String)` if not expected, `Ok(lexeme.value)` if is
+/// Returns `Err(String)` if not expected, `Ok(lexeme.value)` if is. 
+/// Returned string is "Expected \[Expectation\], not \[Found symbol\]" 
+/// (user-facing text)
 /// 
-/// Moves to the next Lexeme
+/// Moves to the next Lexeme when done
 fn expect(expectation: LexSymbol, lexeme: &mut std::iter::Peekable<std::slice::Iter<'_, Lexeme>>) -> Result<String, String> {
     if peek_lexeme(lexeme).symbol == expectation {
         let returnable = Ok(peek_lexeme(lexeme).value.clone());
