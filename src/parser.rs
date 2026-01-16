@@ -1,20 +1,27 @@
 use crate::{compiler_settings::PAR_DEBUG_PRINTS, lexer::{LexSymbol, Lexeme}};
 
+// TODO: Custom ParserError type
+// Include position information, expected symbol and actual symbol
+
 //
 // STRUCTS
 //
 
 #[derive(Debug)]
+#[derive(Clone)]
 pub enum Expression {
     Number(i64),
     String(String),
     Variable(String),
     Operation(Operation),
     FunctionCall {target: String, args: Vec<Expression>},
-    ReturnValue {value: Box<Expression>} // FIXME: probably not correct type
+    ReturnValue {value: Box<Expression>}
+    // ^ // TODO: Make return into a Statement instead 
+         // Will require extra work ughhh
 }
 
 #[derive(Debug)]
+#[derive(Clone)]
 pub struct Operation {
     left: Box<Expression>,
     operator: Operator,
@@ -22,6 +29,7 @@ pub struct Operation {
 }
 
 #[derive(Debug)]
+#[derive(Clone)]
 pub enum Operator {
     Addition,
     Subtraction,
@@ -50,12 +58,12 @@ pub enum Statement {
 
 /// Peeks the lexeme, and handles unwrap.
 /// 
-/// Returns EOF Lexeme if it hits a None
+/// Returns `Lexeme::EOF` Lexeme if it hits a None
 fn peek_lexeme(lexeme: &mut std::iter::Peekable<std::slice::Iter<'_, Lexeme>>) -> Lexeme {
     let lexeme: Option<&&Lexeme> = lexeme.peek(); 
-    if lexeme.is_none() {
-        return Lexeme { symbol: LexSymbol::EOF, value: String::new() }
-    } else {
+    if lexeme.is_none() { // TODO: Remember to change EOF lexeme location at some point
+        return Lexeme { symbol: LexSymbol::EOF, value: String::new(), location: (0, 0) }
+    } else { // FIXME: Don't clone the lexeme on peeking
         return lexeme.unwrap().to_owned().clone() // Peak programming
     }
 }
@@ -63,7 +71,7 @@ fn peek_lexeme(lexeme: &mut std::iter::Peekable<std::slice::Iter<'_, Lexeme>>) -
 /// Expects the next lexeme to be a valid expression, gets it, then sorts it into a valid Expression.
 /// Runs `lexeme.next()` once.
 /// 
-/// Expects format `(Expr)`
+/// Expects format `[Expr]`
 fn parse_single_expression(lexeme: &mut std::iter::Peekable<std::slice::Iter<'_, Lexeme>>) -> Result<Expression, String> {
     match peek_lexeme(lexeme).symbol {
         LexSymbol::String => {
@@ -83,7 +91,6 @@ fn parse_single_expression(lexeme: &mut std::iter::Peekable<std::slice::Iter<'_,
             let idname = peek_lexeme(lexeme).value.clone();
             lexeme.next();
             if peek_lexeme(lexeme).symbol == LexSymbol::GenericOpeningBracket {
-                // We're inside the first bracket, cursor pointing at it.
                 lexeme.next();
                 let args = parse_arguments(lexeme)?;
                 lexeme.next(); // Get over last endbracket
@@ -95,59 +102,91 @@ fn parse_single_expression(lexeme: &mut std::iter::Peekable<std::slice::Iter<'_,
     }
 }
 
-/// Takes in lexeme, recursively gets all the next expressions all the way until an invalid symbol. 
-/// Stops on anything that's not a mathsymbol.
+/// Parses an expression. Returns the expression or a parse error.
 /// 
-/// Expects format `(Expr) [MathSymbol] [Expr] ...`
+/// Expects `[expr] (OperationalSymbol) (expr)...`
+/// 
+/// Returns cursor at `expr + 1`
 fn parse_expression(lexeme: &mut std::iter::Peekable<std::slice::Iter<'_, Lexeme>>) -> Result<Expression, String> {
-    let res_leftexpr = parse_single_expression(lexeme);
-    if res_leftexpr.is_err() {return Err(res_leftexpr.unwrap_err())}
-    let leftexpr = res_leftexpr?;
-
-    let nextsymbol = peek_lexeme(lexeme).symbol;
-    if nextsymbol == LexSymbol::MathSymbol {
-        let operator = {
-            // TODO: Use to Match here instead
-            // All peek_lexeme()'s in this function
-            if peek_lexeme(lexeme).value == "+" {Operator::Addition}
-            else if peek_lexeme(lexeme).value == "-" {Operator::Subtraction}
-            else if peek_lexeme(lexeme).value == "*" {Operator::Multiplication}
-            else if peek_lexeme(lexeme).value == "/" {Operator::Division}
-            else if peek_lexeme(lexeme).value == ">" {Operator::GreaterThan}
-            else if peek_lexeme(lexeme).value == "<" {Operator::LesserThan}
-            else {return Err(format!("{:?} is not considered a valid operator", peek_lexeme(lexeme).value))}
-        };
-        lexeme.next();
-        return Ok(Expression::Operation(
-            Operation { 
-                left: Box::new(leftexpr),
-                operator: operator, 
-                right: Box::new(parse_expression(lexeme)?),
-            }
-        ))
-    } else if nextsymbol == LexSymbol::OperationalSymbol {
-        let operator: Operator = {
-            if peek_lexeme(lexeme).value == "==" {Operator::EqualTo}
-            else if peek_lexeme(lexeme).value == ">=" {Operator::EqualGreaterThan}
-            else if peek_lexeme(lexeme).value == "<=" {Operator::EqualLesserThan}
-            else if peek_lexeme(lexeme).value == "!=" {Operator::Inequal}
-            else {return Err(format!("{:?} is not considered a valid operator", peek_lexeme(lexeme).value))}
-        };
-        lexeme.next();
-        return Ok(Expression::Operation(
-            Operation {
-                left: Box::new(leftexpr),
-                operator: operator,
-                right: Box::new(parse_expression(lexeme)?)
-            }
-        ))
-    } else {return Ok(leftexpr)}
+    let min_importance = 0;
+    println!("Entered head_parse");
+    let expr = better_parse(parse_single_expression(lexeme)?, min_importance, lexeme);
+    return expr
 }
 
-/// Get all following arguments for a function. Runs `lexeme.next` until closing bracket,
-/// (cursor to closebracket)
+/// Used for better_parse() only. Returns the precedence for symbol in a 
+/// operator-precedence parse system. 
+fn precedence(strin: &str) -> i64 {
+    if [">", "<", "=", "==", "!=", ">=", "<="].contains(&strin.as_ref()) {0}
+    else if ["+", "-"].contains(&strin.as_ref()) {1}
+    else if ["/", "*"].contains(&strin.as_ref()) {2}
+    else {-1}
+}
+
+/// "main" parser sub-function for `parse_expression()`, use it instead, do not use this.
+fn better_parse(mut left: Expression, min_importance: i64, lexeme: &mut std::iter::Peekable<std::slice::Iter<'_, Lexeme>>) -> Result<Expression, String> {
+    // Get operator and ensure it's good (Initial error checking)
+    if peek_lexeme(lexeme).symbol != LexSymbol::OperationalSymbol {
+        println!("Isn't operationalsymbol");
+        return Ok(left)
+    }
+    
+    // Fetch Lookahead ; Outer loop
+    println!("Doing loop of better_parse");
+    let mut lookahead = peek_lexeme(lexeme);
+    while precedence(&lookahead.value) >= min_importance {
+
+        // op -> lookahead ; advance token
+        println!("Hit 1st internal loop");
+        let op = lookahead.clone();
+        lexeme.next();
+
+        // Parse RHS ; Lookahead -> peek next
+        let mut right = parse_single_expression(lexeme)?; // implicit lexeme.next()
+        lookahead = peek_lexeme(lexeme);                           // ^ Because of that, points to OpSymbol
+        println!("\nLeft: ########\n{:#?}", left);
+        println!("Right: ########\n{:#?}", right);
+        println!("Lookahead: ########\n{:#?}\n", lookahead);
+
+        // Inner loop
+        while precedence(&lookahead.value) > precedence(&op.value) {
+            println!("Hit 2nd internal loop");
+            println!("Lookahead value: {:#?}", lookahead);
+            let add_importance = if precedence(&lookahead.value) > min_importance {1} else {0};
+            right = better_parse(right.clone(), precedence(&op.value) + add_importance, lexeme)?;
+            lookahead = peek_lexeme(lexeme)
+        }
+
+        // Left side to left+right
+        let operator = {match op.value.as_ref() { 
+            "+" => Operator::Addition, 
+            "-" => Operator::Subtraction, 
+            "/" => Operator::Division, 
+            "*" => Operator::Multiplication, 
+            ">" => Operator::GreaterThan, 
+            "<" => Operator::LesserThan, 
+            "<=" => Operator::EqualLesserThan, 
+            ">=" => Operator::EqualGreaterThan, 
+            "!=" => Operator::Inequal, 
+            "==" => Operator::EqualTo, 
+            _ => return Err("Expected OperationalSymbol".to_string()) // TODO: change error to something good
+        }};
+        left = Expression::Operation(Operation {
+            left: Box::new(left), 
+            operator: operator, 
+            right: Box::new(right) 
+        });
+        println!("Left changed to {:#?}", left);
+    }
+
+    println!("Returning with {:#?}", left);
+    return Ok(left)
+}
+
+/// Get all following arguments for a function. Runs `lexeme.next()` until closing bracket,
+/// (cursor to closebracket). Can handle no arguments as well.
 /// 
-/// Expects format `[Expr] [Comma] [Expr] [Comma] [Expr] ... (ClosingBracket)`. 
+/// Expects format `(Expr) (Comma) (Expr) (Comma) (Expr) ... (ClosingBracket)`. 
 fn parse_arguments(lexeme: &mut std::iter::Peekable<std::slice::Iter<'_, Lexeme>>) -> Result<Vec<Expression>, String> {
     if peek_lexeme(lexeme).symbol == LexSymbol::GenericClosingBracket {return Ok(vec![])}
 
@@ -185,8 +224,8 @@ fn parse_single(lexeme: &mut std::iter::Peekable<std::slice::Iter<'_, Lexeme>>) 
                 let variablename = expect(LexSymbol::Identifier, lexeme)?;
                 expect(LexSymbol::EqualSign, lexeme)?;
                 let expression = {
-                    parse_expression(lexeme)
-                }?;
+                    parse_expression(lexeme)?
+                };
                 outtoken = Some(Statement::VariableAssignment { 
                     name: variablename,
                     value: expression 
@@ -314,7 +353,9 @@ fn expect(expectation: LexSymbol, lexeme: &mut std::iter::Peekable<std::slice::I
         lexeme.next();
         return returnable;
     } else {
-        return Err(format!("Expected {:?}, not {:?}", expectation, peek_lexeme(lexeme).symbol))
+        let symbol = peek_lexeme(lexeme).symbol;
+        let position = peek_lexeme(lexeme).location;
+        return Err(format!("Expected {:?}, not {:?} at position {}:{}", expectation, symbol, position.0, position.1))
     }
 }
 
@@ -332,5 +373,5 @@ pub fn parser(mut lexeme: std::iter::Peekable<std::slice::Iter<'_, Lexeme>>) -> 
 
     if PAR_DEBUG_PRINTS {println!("\nStatement dump:\n{:#?}\n", outtokens)}
     if PAR_DEBUG_PRINTS {println!("- - - Parser done!")}
-    return Ok(vec![])
+    return Ok(outtokens)
 }

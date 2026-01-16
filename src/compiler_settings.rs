@@ -4,6 +4,7 @@
 // 
 
 pub const SRC_FILE: &str = "sourcefile";    // Name of the sourcefile (move to args later)
+pub const OUT_FILE: &str = "assembly.out";
 
 //
 // Lexer
@@ -27,3 +28,8 @@ pub const CLOSED_BRACES: [char; 3] =
 //
 pub const PAR_DEBUG_PRINTS: bool = true;
 pub const LINE_SPLITTER: char = ';';
+
+//
+// Semantic Analyzer
+//
+pub const SEMAN_DEBUG_PRINTS: bool = true;

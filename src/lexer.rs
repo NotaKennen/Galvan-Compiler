@@ -1,8 +1,6 @@
 use crate::compiler_settings::{CLOSED_BRACES, KEYWORDS, LEX_DEBUG_PRINTS, LINE_SPLITTER, OPEN_BRACES, WHITESPACE};
 use std::iter::Peekable;
 
-// TODO: add line and character locations in Lexer
-// add them to LexSymbol to help debug code (for users)
 
 #[derive(Debug)]
 #[derive(PartialEq)]
@@ -16,26 +14,28 @@ pub enum LexSymbol {
     GenericClosingBracket, // ^ Open/close-bracket with value "(" or ")" etc...
     FunctionOpeningBracket,
     FunctionClosingBracket,
-    MathSymbol,
+    OperationalSymbol,
     EqualSign,
     EndLine,
     Dot,
     DoubleDot,
     Comma,
     EOF,
-    OperationalSymbol,
 }
 
 #[derive(Clone)]
 #[derive(Debug)]
 #[derive(PartialEq)]
-pub struct Lexeme {
+pub struct Lexeme { 
     pub symbol: LexSymbol,
-    pub value: String
+    pub value: String,
+    pub location: (usize, usize), // LINE : CHARACTER
 }
 impl Lexeme {
-    pub fn new(symbol: LexSymbol, value: String) -> Self {Lexeme{symbol:symbol, value:value}}
+    pub fn new(symbol: LexSymbol, value: String) -> Self {Lexeme{symbol:symbol, value:value, location: (0, 0)}}
 }
+// TODO: add line and character locations in Lexer
+// add them to Lexeme to help debug code (for users)
 
 /// Takes in a peekable chars iterator, returns with the next possible Lexeme.
 /// Keep running it until iterator runs out to get out all Lexemes.
@@ -163,7 +163,7 @@ fn lex_token(chars: &mut Peekable<impl Iterator<Item = char>>) -> Option<Lexeme>
                             return Some(Lexeme::new(LexSymbol::OperationalSymbol, "<=".to_string()))
                         }
                         _ => {
-                            return Some(Lexeme::new(LexSymbol::MathSymbol, "<".to_string()))
+                            return Some(Lexeme::new(LexSymbol::OperationalSymbol, "<".to_string()))
                         }
                     }
                 },
@@ -176,7 +176,7 @@ fn lex_token(chars: &mut Peekable<impl Iterator<Item = char>>) -> Option<Lexeme>
                             return Some(Lexeme::new(LexSymbol::OperationalSymbol, ">=".to_string()))
                         }
                         _ => {
-                            return Some(Lexeme::new(LexSymbol::MathSymbol, ">".to_string()))
+                            return Some(Lexeme::new(LexSymbol::OperationalSymbol, ">".to_string()))
                         }
                     }
                 },
@@ -184,10 +184,10 @@ fn lex_token(chars: &mut Peekable<impl Iterator<Item = char>>) -> Option<Lexeme>
             }
         }
 
-        // Rest of the mathsymbols
+        // Rest of the OperationalSymbols
         if c == '+' || c == '-' || c == '*' || c == '/' {
             chars.next();
-            return Some(Lexeme::new(LexSymbol::MathSymbol, c.to_string()))
+            return Some(Lexeme::new(LexSymbol::OperationalSymbol, c.to_string()))
         }
 
         // Dot
