@@ -32,17 +32,19 @@ pub struct Lexeme {
     pub location: (usize, usize), // LINE : CHARACTER
 }
 impl Lexeme {
-    pub fn new(symbol: LexSymbol, value: String) -> Self {Lexeme{symbol:symbol, value:value, location: (0, 0)}}
+    pub fn new(symbol: LexSymbol, value: String, location: (usize, usize)) -> Self {Lexeme{symbol:symbol, value:value, location: location}}
 }
 // TODO: add line and character locations in Lexer
 // add them to Lexeme to help debug code (for users)
 
 /// Takes in a peekable chars iterator, returns with the next possible Lexeme.
 /// Keep running it until iterator runs out to get out all Lexemes.
-fn lex_token(chars: &mut Peekable<impl Iterator<Item = char>>) -> Option<Lexeme> {
+fn lex_token(chars: &mut Peekable<impl Iterator<Item = char>>, loc: &mut (usize, usize)) -> Option<Lexeme> {
     while let Some(&c) = chars.peek() {
         // Token is whitespace, ignore
         if WHITESPACE.contains(&c) { 
+            if &c == &'\n' {*loc = (loc.0 + 1, 1 as usize)} 
+            else {*loc = (loc.0, loc.1 + 1)}
             chars.next(); // Go to next char
             continue;
         }
@@ -53,15 +55,16 @@ fn lex_token(chars: &mut Peekable<impl Iterator<Item = char>>) -> Option<Lexeme>
             while let Some(&ch) = chars.peek() {
                 if ch.is_ascii_alphanumeric() || ch == '_' {
                     ident.push(ch);
+                    *loc = (loc.0, loc.1 + 1);
                     chars.next();
                 } else {
                     break;
                 }
             }
             if KEYWORDS.contains(&ident.as_str()) {
-                return Some(Lexeme::new(LexSymbol::Keyword, ident));
+                return Some(Lexeme::new(LexSymbol::Keyword, ident, *loc));
             } else {
-                return Some(Lexeme::new(LexSymbol::Identifier, ident));
+                return Some(Lexeme::new(LexSymbol::Identifier, ident, *loc));
             }
         }
 
@@ -71,44 +74,49 @@ fn lex_token(chars: &mut Peekable<impl Iterator<Item = char>>) -> Option<Lexeme>
             while let Some(&ch) = chars.peek() {
                 if ch.is_ascii_digit() {
                     num.push(ch);
+                    *loc = (loc.0, loc.1 + 1);
                     chars.next();
                 } else if ch == '.' {
                     num.push(ch);
+                    *loc = (loc.0, loc.1 + 1);
                     chars.next();
                 } else {
                     break;
                 }
             }
-            return Some(Lexeme::new(LexSymbol::Integer, num));
+            return Some(Lexeme::new(LexSymbol::Integer, num, *loc));
         }
 
         // String literal
         if c == '"' {
+            *loc = (loc.0, loc.1 + 1);
             chars.next(); // consume opening quote
             let mut val = String::new();
             while let Some(ch) = chars.next() {
+                *loc = (loc.0, loc.1 + 1);
                 if ch == '"' {
                     break;
                 }
                 val.push(ch);
             }
-            return Some(Lexeme::new(LexSymbol::String, val));
+            return Some(Lexeme::new(LexSymbol::String, val, *loc));
         }
     
         // Braces
         if OPEN_BRACES.contains(&c) { // TODO: This brace setup is stupid, make it better
-            if c == '(' {chars.next(); return Some(Lexeme::new(LexSymbol::GenericOpeningBracket, c.to_string()));}
-            else if c == '{' {chars.next(); return Some(Lexeme::new(LexSymbol::FunctionOpeningBracket, c.to_string()));}
+            if c == '(' {chars.next(); *loc = (loc.0, loc.1 + 1); return Some(Lexeme::new(LexSymbol::GenericOpeningBracket, c.to_string(), *loc));}
+            else if c == '{' {chars.next(); *loc = (loc.0, loc.1 + 1); return Some(Lexeme::new(LexSymbol::FunctionOpeningBracket, c.to_string(), *loc));}
         }
         if CLOSED_BRACES.contains(&c) {
-            if c == ')' {chars.next(); return Some(Lexeme::new(LexSymbol::GenericClosingBracket, c.to_string()));}
-            else if c == '}' {chars.next(); return Some(Lexeme::new(LexSymbol::FunctionClosingBracket, c.to_string()));}
+            if c == ')' {chars.next(); *loc = (loc.0, loc.1 + 1); return Some(Lexeme::new(LexSymbol::GenericClosingBracket, c.to_string(), *loc));}
+            else if c == '}' {chars.next(); *loc = (loc.0, loc.1 + 1); return Some(Lexeme::new(LexSymbol::FunctionClosingBracket, c.to_string(), *loc));}
         } 
     
         // Line splitter
         if c == LINE_SPLITTER {
             chars.next();
-            return Some(Lexeme::new(LexSymbol::EndLine, LINE_SPLITTER.to_string()))
+            *loc = (loc.0, loc.1 + 1);
+            return Some(Lexeme::new(LexSymbol::EndLine, LINE_SPLITTER.to_string(), *loc))
         }
 
         // Operational Symbols and GT/LT Math Symbols
@@ -117,36 +125,43 @@ fn lex_token(chars: &mut Peekable<impl Iterator<Item = char>>) -> Option<Lexeme>
             match c {
                 '=' => {
                     chars.next();
+                    *loc = (loc.0, loc.1 + 1);
                     let c = chars.peek().unwrap(); // FIXME: Unwrap :(
                     match c {                             // Fix the ones below too
                         '=' => {
                             chars.next();
-                            return Some(Lexeme::new(LexSymbol::OperationalSymbol, "==".to_string()))
+                            *loc = (loc.0, loc.1 + 1);
+                            return Some(Lexeme::new(LexSymbol::OperationalSymbol, "==".to_string(), *loc))
                         }
                         '>' => {
                             chars.next();
-                            return Some(Lexeme::new(LexSymbol::OperationalSymbol, ">=".to_string()))
+                            *loc = (loc.0, loc.1 + 1);
+                            return Some(Lexeme::new(LexSymbol::OperationalSymbol, ">=".to_string(), *loc))
                         }
                         '<' => {
                             chars.next();
-                            return Some(Lexeme::new(LexSymbol::OperationalSymbol, "<=".to_string()))
+                            *loc = (loc.0, loc.1 + 1);
+                            return Some(Lexeme::new(LexSymbol::OperationalSymbol, "<=".to_string(), *loc))
                         }
                         '!' => {
                             chars.next();
-                            return Some(Lexeme::new(LexSymbol::OperationalSymbol, "!=".to_string()))
+                            *loc = (loc.0, loc.1 + 1);
+                            return Some(Lexeme::new(LexSymbol::OperationalSymbol, "!=".to_string(), *loc))
                         }
                         _ => {
-                            return Some(Lexeme::new(LexSymbol::EqualSign, "=".to_string()))
+                            return Some(Lexeme::new(LexSymbol::EqualSign, "=".to_string(), *loc))
                         }
                     }
                 },
                 '!' => {
                     chars.next();
+                    *loc = (loc.0, loc.1 + 1);
                     let c = chars.peek().unwrap();
                     match c {
                         '=' => {
                             chars.next();
-                            return Some(Lexeme::new(LexSymbol::OperationalSymbol, "!=".to_string()))
+                            *loc = (loc.0, loc.1 + 1);
+                            return Some(Lexeme::new(LexSymbol::OperationalSymbol, "!=".to_string(), *loc))
                         }
                         _ => {
                             continue;
@@ -156,60 +171,69 @@ fn lex_token(chars: &mut Peekable<impl Iterator<Item = char>>) -> Option<Lexeme>
                 },
                 '<' => {
                     chars.next();
+                    *loc = (loc.0, loc.1 + 1);
                     let c = chars.peek().unwrap();
                     match c {
                         '=' => {
                             chars.next();
-                            return Some(Lexeme::new(LexSymbol::OperationalSymbol, "<=".to_string()))
+                            *loc = (loc.0, loc.1 + 1);
+                            return Some(Lexeme::new(LexSymbol::OperationalSymbol, "<=".to_string(), *loc))
                         }
                         _ => {
-                            return Some(Lexeme::new(LexSymbol::OperationalSymbol, "<".to_string()))
+                            return Some(Lexeme::new(LexSymbol::OperationalSymbol, "<".to_string(), *loc))
                         }
                     }
                 },
                 '>' => {
                     chars.next();
+                    *loc = (loc.0, loc.1 + 1);
                     let c = chars.peek().unwrap();
                     match c {
                         '=' => {
                             chars.next();
-                            return Some(Lexeme::new(LexSymbol::OperationalSymbol, ">=".to_string()))
+                            *loc = (loc.0, loc.1 + 1);
+                            return Some(Lexeme::new(LexSymbol::OperationalSymbol, ">=".to_string(), *loc))
                         }
                         _ => {
-                            return Some(Lexeme::new(LexSymbol::OperationalSymbol, ">".to_string()))
+                            return Some(Lexeme::new(LexSymbol::OperationalSymbol, ">".to_string(), *loc))
                         }
                     }
                 },
-                _ => {chars.next(); continue;} // Should never happen
+                _ => {chars.next(); *loc = (loc.0, loc.1 + 1); continue;} // Should never happen
             }
         }
 
         // Rest of the OperationalSymbols
         if c == '+' || c == '-' || c == '*' || c == '/' {
             chars.next();
-            return Some(Lexeme::new(LexSymbol::OperationalSymbol, c.to_string()))
+            *loc = (loc.0, loc.1 + 1);
+            return Some(Lexeme::new(LexSymbol::OperationalSymbol, c.to_string(), *loc))
         }
 
         // Dot
         if c == '.' {
             chars.next();
-            return Some(Lexeme::new(LexSymbol::Dot, '.'.to_string()))
+            *loc = (loc.0, loc.1 + 1);
+            return Some(Lexeme::new(LexSymbol::Dot, '.'.to_string(), *loc))
         }
 
         // Comma
         if c == ',' {
             chars.next();
-            return Some(Lexeme::new(LexSymbol::Comma, ','.to_string()))
+            *loc = (loc.0, loc.1 + 1);
+            return Some(Lexeme::new(LexSymbol::Comma, ','.to_string(), *loc))
         }
 
         // Double dot ( : )
         if c == ':' {
             chars.next();
-            return Some(Lexeme::new(LexSymbol::DoubleDot, ":".to_string()))
+            *loc = (loc.0, loc.1 + 1);
+            return Some(Lexeme::new(LexSymbol::DoubleDot, ":".to_string(), *loc))
         }
 
         // Unrecognized: skip
         chars.next();
+        *loc = (loc.0, loc.1 + 1);
     }
 
     None
@@ -222,7 +246,8 @@ pub fn lexer(content: &str) -> Vec<Lexeme> {
     // Main lexer loop
     let mut chars = content.chars().peekable();
     let mut tokens = Vec::new();
-    while let Some(token) = lex_token(&mut chars) {
+    let mut location_tracker: (usize, usize) = (0, 1);
+    while let Some(token) = lex_token(&mut chars, &mut location_tracker) {
         tokens.push(token);
     }
 

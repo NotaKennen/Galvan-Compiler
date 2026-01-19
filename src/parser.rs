@@ -109,7 +109,6 @@ fn parse_single_expression(lexeme: &mut std::iter::Peekable<std::slice::Iter<'_,
 /// Returns cursor at `expr + 1`
 fn parse_expression(lexeme: &mut std::iter::Peekable<std::slice::Iter<'_, Lexeme>>) -> Result<Expression, String> {
     let min_importance = 0;
-    println!("Entered head_parse");
     let expr = better_parse(parse_single_expression(lexeme)?, min_importance, lexeme);
     return expr
 }
@@ -127,31 +126,23 @@ fn precedence(strin: &str) -> i64 {
 fn better_parse(mut left: Expression, min_importance: i64, lexeme: &mut std::iter::Peekable<std::slice::Iter<'_, Lexeme>>) -> Result<Expression, String> {
     // Get operator and ensure it's good (Initial error checking)
     if peek_lexeme(lexeme).symbol != LexSymbol::OperationalSymbol {
-        println!("Isn't operationalsymbol");
         return Ok(left)
     }
     
     // Fetch Lookahead ; Outer loop
-    println!("Doing loop of better_parse");
     let mut lookahead = peek_lexeme(lexeme);
     while precedence(&lookahead.value) >= min_importance {
 
         // op -> lookahead ; advance token
-        println!("Hit 1st internal loop");
         let op = lookahead.clone();
         lexeme.next();
 
         // Parse RHS ; Lookahead -> peek next
         let mut right = parse_single_expression(lexeme)?; // implicit lexeme.next()
         lookahead = peek_lexeme(lexeme);                           // ^ Because of that, points to OpSymbol
-        println!("\nLeft: ########\n{:#?}", left);
-        println!("Right: ########\n{:#?}", right);
-        println!("Lookahead: ########\n{:#?}\n", lookahead);
 
         // Inner loop
         while precedence(&lookahead.value) > precedence(&op.value) {
-            println!("Hit 2nd internal loop");
-            println!("Lookahead value: {:#?}", lookahead);
             let add_importance = if precedence(&lookahead.value) > min_importance {1} else {0};
             right = better_parse(right.clone(), precedence(&op.value) + add_importance, lexeme)?;
             lookahead = peek_lexeme(lexeme)
@@ -176,10 +167,8 @@ fn better_parse(mut left: Expression, min_importance: i64, lexeme: &mut std::ite
             operator: operator, 
             right: Box::new(right) 
         });
-        println!("Left changed to {:#?}", left);
     }
 
-    println!("Returning with {:#?}", left);
     return Ok(left)
 }
 
@@ -319,7 +308,7 @@ fn parse_single(lexeme: &mut std::iter::Peekable<std::slice::Iter<'_, Lexeme>>) 
 
         // "Breaking symbols"
         LexSymbol::EndLine => {lexeme.next();}
-        invalid => {return Err(format!("Expected keyword, not {:?}", invalid))}
+        _ => {expect(LexSymbol::Keyword, lexeme)?;}
     }
     return Ok(outtoken);
 }
