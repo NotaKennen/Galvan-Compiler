@@ -34,8 +34,6 @@ pub struct Lexeme {
 impl Lexeme {
     pub fn new(symbol: LexSymbol, value: String, location: (usize, usize)) -> Self {Lexeme{symbol:symbol, value:value, location: location}}
 }
-// TODO: add line and character locations in Lexer
-// add them to Lexeme to help debug code (for users)
 
 /// Takes in a peekable chars iterator, returns with the next possible Lexeme.
 /// Keep running it until iterator runs out to get out all Lexemes.
@@ -246,7 +244,7 @@ pub fn lexer(content: &str) -> Vec<Lexeme> {
     // Main lexer loop
     let mut chars = content.chars().peekable();
     let mut tokens = Vec::new();
-    let mut location_tracker: (usize, usize) = (0, 1);
+    let mut location_tracker: (usize, usize) = (1, 1);
     while let Some(token) = lex_token(&mut chars, &mut location_tracker) {
         tokens.push(token);
     }

@@ -14,8 +14,8 @@ pub const OUT_FILE: &str = "assembly.out";
 // // There's a ton of hardcoded values in the lexer, bring them here.
 // At this rate I might as well hardcode the rest
 pub const LEX_DEBUG_PRINTS: bool = true;
-pub const KEYWORDS: [&str; 6] = 
-    ["let", "if", "function", "call", "return", "while"];
+pub const KEYWORDS: [&str; 7] = 
+    ["let", "if", "function", "call", "return", "while", "else"];
 pub const WHITESPACE: [char; 4] = 
     [' ', '\n', '\t', '\r'];
 pub const OPEN_BRACES: [char; 3] = 

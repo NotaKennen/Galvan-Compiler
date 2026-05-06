@@ -49,7 +49,7 @@ pub enum Statement {
     VariableAssignment {name: String, value: Expression},
     FunctionAssignment {name: String, arguments: Vec<Expression>, body: Vec<Statement>},
     While {condition: Expression, body: Vec<Statement>},
-    ConditionalStatement {condition: Expression, body: Vec<Statement>},
+    ConditionalStatement {condition: Expression, body: Vec<Statement>, else_body: Option<Vec<Statement>>},
 }
 
 //
@@ -202,13 +202,14 @@ fn parse_arguments(lexeme: &mut std::iter::Peekable<std::slice::Iter<'_, Lexeme>
 /// Unlike `parse_single_expression()`, this one includes keywords and such.
 fn parse_single(lexeme: &mut std::iter::Peekable<std::slice::Iter<'_, Lexeme>>) -> Result<Option<Statement>, String> { 
     let mut outtoken: Option<Statement> = None;
+    let lex_val = peek_lexeme(lexeme).value;
     match peek_lexeme(lexeme).symbol {
         // Keywords, see compiler_settings.rs for specifics
         LexSymbol::Keyword => {
             // TODO: Use match here instead
 
             // Defining a variable
-            if peek_lexeme(lexeme).value == "let" {
+            if lex_val == "let" {
                 lexeme.next();
                 let variablename = expect(LexSymbol::Identifier, lexeme)?;
                 expect(LexSymbol::EqualSign, lexeme)?;
@@ -224,7 +225,7 @@ fn parse_single(lexeme: &mut std::iter::Peekable<std::slice::Iter<'_, Lexeme>>) 
             }
         
             // Defining function
-            else if peek_lexeme(lexeme).value == "function" {
+            else if lex_val == "function" {
                 lexeme.next();
                 let functionname = expect(LexSymbol::Identifier, lexeme)?;
                 expect(LexSymbol::GenericOpeningBracket, lexeme)?;
@@ -243,7 +244,7 @@ fn parse_single(lexeme: &mut std::iter::Peekable<std::slice::Iter<'_, Lexeme>>) 
             }
 
             // Calling function
-            else if peek_lexeme(lexeme).value == "call" {
+            else if lex_val == "call" {
                 lexeme.next();
                 let target = expect(LexSymbol::Identifier, lexeme)?;
                 expect(LexSymbol::GenericOpeningBracket, lexeme)?;
@@ -259,7 +260,7 @@ fn parse_single(lexeme: &mut std::iter::Peekable<std::slice::Iter<'_, Lexeme>>) 
             }
 
             // Function returns
-            else if peek_lexeme(lexeme).value == "return" {
+            else if lex_val == "return" {
                 lexeme.next();
                 let returning = parse_expression(lexeme)?;
                 expect(LexSymbol::EndLine, lexeme)?;
@@ -271,7 +272,7 @@ fn parse_single(lexeme: &mut std::iter::Peekable<std::slice::Iter<'_, Lexeme>>) 
             }
 
             // Conditionals
-            else if peek_lexeme(lexeme).value == "if" {
+            else if lex_val == "if" {
                 lexeme.next();
                 expect(LexSymbol::GenericOpeningBracket, lexeme)?;
                 let condition = parse_expression(lexeme)?;
@@ -280,14 +281,23 @@ fn parse_single(lexeme: &mut std::iter::Peekable<std::slice::Iter<'_, Lexeme>>) 
                 let body = parse_until_symbol(LexSymbol::FunctionClosingBracket, lexeme)?;
                 lexeme.next();
 
+                let mut else_body = None;
+                if peek_lexeme(lexeme).value == "else" {
+                    lexeme.next();
+                    expect(LexSymbol::FunctionOpeningBracket, lexeme)?;
+                    else_body = Some(parse_until_symbol(LexSymbol::FunctionClosingBracket, lexeme)?);
+                    lexeme.next();
+                }
+
                 outtoken = Some(Statement::ConditionalStatement {
                     condition, 
-                    body, 
+                    body,
+                    else_body: else_body
                 })
             }
 
             // While loops
-            else if peek_lexeme(lexeme).value == "while" {
+            else if lex_val == "while" {
                 // Surprisingly similar to IFs hmmm...
                 lexeme.next();
                 expect(LexSymbol::GenericOpeningBracket, lexeme)?;
@@ -301,6 +311,12 @@ fn parse_single(lexeme: &mut std::iter::Peekable<std::slice::Iter<'_, Lexeme>>) 
                     condition, 
                     body 
                 })
+            }
+
+            // (Else catch guard)
+            else if lex_val == "else" {
+                let lx = peek_lexeme(lexeme);
+                return Err(format!("'Else' not conjoined to an 'if' clause at position {}:{}", lx.location.0, lx.location.1));
             }
 
             else {return Err(format!("Unexpected keyword '{}', non-matching Lexer-Parser versions?", peek_lexeme(lexeme).value))}
